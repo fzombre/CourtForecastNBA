@@ -8,10 +8,9 @@ It uses a machine-learning model for single games and a Monte Carlo simulation f
 You need Python 3.10 or newer from [python.org](https://www.python.org/downloads/windows/).
 When you install it, tick **"Add python.exe to PATH"**.
 
-Open PowerShell in the folder that holds `CFNBA.tar.gz`, then run:
+Right-click `CFNBA.zip` and choose **Extract All**. Then open PowerShell in the folder that holds the extracted `CFNBA` folder and run:
 
 ```powershell
-tar -xzf CFNBA.tar.gz              # unzip (tar is built into Windows 10 and 11)
 cd CFNBA
 python -m venv .venv               # a private box for this project's packages
 .\.venv\Scripts\Activate.ps1       # turn the box on; your prompt now starts with (.venv)
