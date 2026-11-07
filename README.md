@@ -3,19 +3,54 @@
 Predicts every remaining game of the 2026-27 NBA season, the standings and the champion.
 It uses a machine-learning model for single games and a Monte Carlo simulation for everything after that.
 
-## Run it
+## Run it (Windows, PowerShell)
 
-You need Python 3.10 or newer.
+You need Python 3.10 or newer from [python.org](https://www.python.org/downloads/windows/).
+When you install it, tick **"Add python.exe to PATH"**.
 
-```bash
+Open PowerShell in the folder that holds `CFNBA.tar.gz`, then run:
+
+```powershell
+tar -xzf CFNBA.tar.gz              # unzip (tar is built into Windows 10 and 11)
 cd CFNBA
-python -m venv .venv              # a private box for this project's packages
-source .venv/bin/activate         # on Windows: .venv\Scripts\activate
+python -m venv .venv               # a private box for this project's packages
+.\.venv\Scripts\Activate.ps1       # turn the box on; your prompt now starts with (.venv)
 pip install -r requirements.txt
-streamlit run app.py              # opens http://localhost:8501 in your browser
+streamlit run app.py               # opens http://localhost:8501 in your browser
 ```
 
+If `Activate.ps1` fails with *"running scripts is disabled on this system"*, run this once, then activate again:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+That setting only lets your own user account run local scripts like `Activate.ps1`.
+
+If `python` opens the Microsoft Store or says it isn't found, use `py` in place of `python` (for example
+`py -m venv .venv`).
+
+**Every time after the first time** you only need these three lines:
+
+```powershell
+cd CFNBA
+.\.venv\Scripts\Activate.ps1
+streamlit run app.py
+```
+
+Stop the app with **Ctrl + C** in PowerShell.
+
 Run the tests with `pip install pytest` and then `python -m pytest`.
+
+<details><summary>Mac / Linux instead</summary>
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+</details>
 
 ## The tabs
 

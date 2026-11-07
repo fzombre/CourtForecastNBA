@@ -10,6 +10,25 @@ NBA schedule file ──> data.py ──> model.py ──> simulate.py ──> a
 
 ---
 
+## 0. Setting up on Windows: what each command does
+
+The exact commands are in the [README](README.md#run-it-windows-powershell). Here's what they're doing:
+
+- **`python -m venv .venv`** creates a *virtual environment*: a private folder (`.venv`) that holds this project's
+  packages, so they don't clash with other Python projects on your PC.
+- **`.\.venv\Scripts\Activate.ps1`** switches PowerShell to use that private folder. You'll see `(.venv)` at the
+  start of the prompt. You need to run it again in every new PowerShell window. If Windows says *"running scripts
+  is disabled"*, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+- **`pip install -r requirements.txt`** downloads the libraries listed in `requirements.txt`: Streamlit, pandas,
+  NumPy, scikit-learn and requests.
+- **`streamlit run app.py`** starts a small web server on your PC and opens the site at `http://localhost:8501`.
+  "localhost" means "this computer": nobody else can see it. Press Ctrl + C in PowerShell to stop it.
+
+The code itself works the same on Windows, Mac and Linux. File paths are built with Python's `pathlib` (which
+picks `\` or `/` for you), and the saved data file is always read and written as UTF-8.
+
+---
+
 ## 1. Choosing the tools
 
 ### Data source: the NBA's own schedule file

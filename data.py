@@ -47,7 +47,7 @@ def download_schedule():
     response.raise_for_status()  # turns a failed download into an error message
     raw = response.json()
     CACHE_FILE.parent.mkdir(exist_ok=True)
-    CACHE_FILE.write_text(json.dumps(raw))
+    CACHE_FILE.write_text(json.dumps(raw), encoding="utf-8")  # utf-8 so Windows reads it the same way
     return raw
 
 
@@ -57,7 +57,7 @@ def load_schedule():
         return download_schedule(), "live"
     except requests.RequestException:
         if CACHE_FILE.exists():
-            return json.loads(CACHE_FILE.read_text()), "saved copy"
+            return json.loads(CACHE_FILE.read_text(encoding="utf-8")), "saved copy"
         raise
 
 
