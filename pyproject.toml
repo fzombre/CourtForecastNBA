@@ -1,0 +1,9 @@
+[project]
+name = "courtforecastnba"
+version = "0.1.0"
+description = "Predicts the rest of the NBA season, the standings and the champion."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]   # lets tests do "import data" (src/) and "from tests.fake_schedule import ..."
+testpaths = ["tests"]
