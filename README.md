@@ -1,4 +1,4 @@
-# Frank: NBA stats explorer and game predictor
+# CFNBA (CourtForecastNBA): NBA stats explorer and game predictor
 
 ## Run it
 ```
