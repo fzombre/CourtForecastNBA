@@ -26,7 +26,7 @@ export default function NavTabs() {
         const active = pathname === tab.href;
         return (
           // <Link> switches pages without reloading the whole site, so the header and
-          // the chosen number of simulations stay as they are.
+          // the data it already loaded stay as they are.
           <Link
             key={tab.href}
             href={tab.href}

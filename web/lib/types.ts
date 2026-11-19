@@ -33,8 +33,9 @@ export type Rating = {
 export type Overview = {
   season: string; // e.g. "2026-27"
   source: string; // "live (nba_api)" or "saved copy (...)"
-  sim_choices: number[]; // the simulation counts you can pick, e.g. [500, 1000, 2000, 5000, 10000]
+  n_sims: number; // how many seasons the Monte Carlo simulation played (the app's own setting)
   team_names: Record<string, string>; // "BOS" -> "Boston Celtics"
+  team_ids: Record<string, number>; // "BOS" -> 1610612738, the NBA id used in logo addresses
   training_games: number; // finished games the model learned from
   using_model: boolean; // false early in the season, when the app uses plain Elo
   weights: number[] | null; // [Elo gap, recent margin gap, rest days gap]; null when using plain Elo

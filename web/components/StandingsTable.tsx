@@ -2,20 +2,19 @@
 
 // Tab 3 (Standings): live East and West standings side by side, with games behind.
 
-import { useApi, useSettings } from "./SettingsProvider";
+import { useApi } from "./SettingsProvider";
 import Table, { Caption, LoadingOrError, type Column } from "./Table";
+import Team from "./Team";
 import type { Conference, Standings, StandingsRow } from "@/lib/types";
 
 export default function StandingsTable() {
-  const { teamName } = useSettings();
   const { data, error } = useApi<Standings>("/api/standings");
 
   if (!data) return <LoadingOrError error={error} what="standings" />;
 
-  // Defined inside the component because the Team column needs teamName from the settings.
   const columns: Column<StandingsRow>[] = [
     { header: "Rank", cell: (_row, index) => index + 1, numeric: true }, // rows arrive already sorted
-    { header: "Team", cell: (row) => teamName(row.team) },
+    { header: "Team", cell: (row) => <Team code={row.team} /> },
     { header: "W", cell: (row) => row.W, numeric: true },
     { header: "L", cell: (row) => row.L, numeric: true },
     { header: "PCT", cell: (row) => row.PCT.toFixed(3), numeric: true },

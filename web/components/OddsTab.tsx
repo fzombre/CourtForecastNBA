@@ -5,6 +5,7 @@
 
 import { useApi, useSettings } from "./SettingsProvider";
 import Table, { Caption, LoadingOrError, type Column } from "./Table";
+import Team from "./Team";
 import type { TeamOdds } from "@/lib/types";
 
 /** A percentage with one decimal, e.g. 20.4 -> "20.4%". The API already sends percentages. */
@@ -23,16 +24,18 @@ function TitleBar({ value }: { value: number }) {
 }
 
 export default function OddsTab() {
-  const { sims, teamName } = useSettings();
-  const { data: odds, error, loading } = useApi<TeamOdds[]>(`/api/odds?sims=${sims}`);
+  const { overview } = useSettings();
+  const { data: odds, error, loading } = useApi<TeamOdds[]>("/api/odds");
+  // How many seasons the API simulated (its own setting). Undefined until the overview has loaded.
+  const nSims = overview.data?.n_sims;
 
-  // Changing the number of simulations takes a few seconds, so say so instead of showing old numbers silently.
+  // The first simulation after a download takes a few seconds, so say so while waiting.
   if (!odds) return <LoadingOrError error={error} what="playoff odds (the simulation takes a few seconds)" />;
 
   const favorite = odds[0]; // the API sends the teams sorted by title odds, best first
 
   const columns: Column<TeamOdds>[] = [
-    { header: "Team", cell: (t) => teamName(t.team) },
+    { header: "Team", cell: (t) => <Team code={t.team} /> },
     { header: "Conf", cell: (t) => t.conference },
     { header: "Proj W", cell: (t) => t.proj_W.toFixed(1), numeric: true },
     { header: "Proj L", cell: (t) => t.proj_L.toFixed(1), numeric: true },
@@ -47,13 +50,16 @@ export default function OddsTab() {
   return (
     <section>
       <Caption>
-        Based on {sims.toLocaleString()} simulated seasons, including the play-in and every playoff round.
+        Based on {nSims ? nSims.toLocaleString() : "thousands of"} simulated seasons, including the play-in and
+        every playoff round.
         {loading && " Updating..."}
       </Caption>
       {favorite && (
         <div className="mb-4">
           <p className="text-sm text-zinc-500">Title favorite</p>
-          <p className="text-2xl font-semibold">{teamName(favorite.team)}</p>
+          <p className="text-2xl font-semibold">
+            <Team code={favorite.team} logoSize={36} />
+          </p>
           <p className="text-sm text-green-600">{percent(favorite.champion)} to win it all</p>
         </div>
       )}

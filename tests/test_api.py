@@ -15,6 +15,9 @@ def client(monkeypatch):
     # Swap the real download for the fake schedule. api.py imported load_schedule
     # by name, so that name inside api is the one we replace.
     monkeypatch.setattr(api, "load_schedule", lambda: (fake_schedule(), "test data"))
+    # Fewer simulations than the real app, so the tests run quickly. The odds still have
+    # to add up exactly (one champion per season), whatever the number of simulations.
+    monkeypatch.setattr(api, "N_SIMS", 500)
     api.refresh()  # start every test with empty caches
     return TestClient(api.app)
 
@@ -23,7 +26,10 @@ def test_overview(client):
     body = client.get("/api/overview").json()
     assert body["season"] == "2026-27"
     assert body["source"] == "test data"
+    assert body["n_sims"] == 500  # the app's own setting (500 here, set by the fixture above)
     assert len(body["ratings"]) == 30
+    assert body["team_ids"]["BOS"] == 1610612738  # used for the team logos
+    assert len(body["team_ids"]) == 30
 
 
 def test_results_and_upcoming(client):
@@ -55,5 +61,5 @@ def test_projected_standings_default_date(client):
 
 
 def test_odds_add_up(client):
-    odds = client.get("/api/odds", params={"sims": 500}).json()
+    odds = client.get("/api/odds").json()
     assert abs(sum(team["champion"] for team in odds) - 100) < 0.5  # exactly one champion per season

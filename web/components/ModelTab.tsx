@@ -6,6 +6,7 @@
 
 import { useSettings } from "./SettingsProvider";
 import Table, { Caption, Info, LoadingOrError, type Column } from "./Table";
+import Team from "./Team";
 import { pct } from "@/lib/format";
 import type { Rating } from "@/lib/types";
 
@@ -13,7 +14,7 @@ import type { Rating } from "@/lib/types";
 const FEATURE_LABELS = ["Elo gap", "Recent margin gap", "Rest days gap"];
 
 const RATING_COLUMNS: Column<Rating>[] = [
-  { header: "Team", cell: (r) => r.name },
+  { header: "Team", cell: (r) => <Team code={r.team} name={r.name} /> },
   { header: "Conf", cell: (r) => r.conference },
   { header: "Elo", cell: (r) => r.elo.toFixed(1), numeric: true },
   { header: "Avg margin (last 10)", cell: (r) => r.margin.toFixed(1), numeric: true },

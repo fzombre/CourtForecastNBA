@@ -20,12 +20,18 @@ import json
 import threading
 import time
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI
+from nba_api.stats.static import teams as nba_teams
 
 from data import CONFERENCE, add_games_behind, load_schedule, parse_games, standings, team_names
 from forecast import build_forecast, expected_wins_by_date
 
 app = FastAPI(title="CourtForecastNBA API")
+
+# Each team's official NBA id, e.g. "BOS" -> 1610612738. The frontend needs it to build the
+# address of the team's logo on NBA.com. nba_api ships this list inside the library, so it
+# works offline and never calls stats.nba.com. (They're the same ids as "teamId" in the schedule.)
+TEAM_IDS = {team["abbreviation"]: team["id"] for team in nba_teams.get_teams()}
 
 
 # ---------- Caching (the same job @st.cache_data does in app.py) ----------
@@ -34,7 +40,16 @@ app = FastAPI(title="CourtForecastNBA API")
 
 GAMES_TTL_SECONDS = 600  # re-download the schedule at most every 10 minutes, like app.py does
 _games_cache = {"value": None, "loaded_at": 0.0}  # value = (games DataFrame, season, source)
-_forecast_cache = {}  # n_sims -> the dict build_forecast() returns, for the current games
+_forecast_cache = {}  # "forecast" -> the dict build_forecast() returns, for the current games
+
+# How many seasons the Monte Carlo simulation plays out. The app picks this, not the
+# person using the website: it's a quality setting for the predictions, not a choice.
+# More simulations give steadier odds, but take longer:
+#   2,000 seasons:  about 0.5 s, but the title favorite can change from run to run
+#  10,000 seasons:  about 2 s, title odds steady to within about half a percent
+#  20,000 seasons:  about 5 s, barely steadier than 10,000
+# The result is cached (see get_forecast), so this cost is paid at most once per download.
+N_SIMS = 10_000
 
 # The website asks for several things at once when a page opens (the header and the tab
 # both need the forecast). FastAPI answers those requests in parallel threads, so without
@@ -56,13 +71,14 @@ def get_games():
         return _games_cache["value"]
 
 
-def get_forecast(n_sims):
-    """build_forecast() for the current games, run once per number of simulations and then reused."""
+def get_forecast():
+    """build_forecast() for the current games: run once with N_SIMS seasons, then reused."""
     with _cache_lock:
         games, _, _ = get_games()
-        if n_sims not in _forecast_cache:
-            _forecast_cache[n_sims] = build_forecast(games, n_sims=n_sims, seed=42)  # seed 42 = same as app.py
-        return _forecast_cache[n_sims]
+        if "forecast" not in _forecast_cache:
+            # seed=42 makes the dice rolls repeatable, so the same games always give the same odds.
+            _forecast_cache["forecast"] = build_forecast(games, n_sims=N_SIMS, seed=42)
+        return _forecast_cache["forecast"]
 
 
 def to_records(df):
@@ -77,22 +93,13 @@ def to_records(df):
     return json.loads(df.to_json(orient="records"))
 
 
-# Only these simulation counts are allowed, the same choices as the Streamlit sidebar.
-SIM_CHOICES = [500, 1000, 2000, 5000, 10000]
-
-
-def check_sims(sims):
-    """Fall back to the default (2000) if the frontend asks for a count we don't offer."""
-    return sims if sims in SIM_CHOICES else 2000
-
-
 # ---------- Endpoints: roughly one per tab of the Streamlit app ----------
 
 @app.get("/api/overview")
-def overview(sims: int = Query(2000)):
+def overview():
     """What the sidebar and the Model tab show: season, data source, model accuracy, Elo ratings."""
     games, season, source = get_games()
-    forecast = get_forecast(check_sims(sims))
+    forecast = get_forecast()
     names = team_names(games)
     trained = forecast["model"]  # None early in the season, when the app uses plain Elo
     ratings = [
@@ -103,8 +110,9 @@ def overview(sims: int = Query(2000)):
     return {
         "season": season,
         "source": source,
-        "sim_choices": SIM_CHOICES,
+        "n_sims": N_SIMS,  # how many seasons the odds are based on, for the Playoff odds caption
         "team_names": names,
+        "team_ids": TEAM_IDS,  # "BOS" -> 1610612738, used by the frontend to show each team's logo
         "training_games": forecast["training_games"],
         "using_model": trained is not None,
         # Weights in the same order as model.FEATURES: Elo gap, recent margin gap, rest days gap.
@@ -124,9 +132,9 @@ def results():
 
 
 @app.get("/api/upcoming")
-def upcoming(sims: int = Query(2000)):
+def upcoming():
     """Tab 2: every game left, with the model's pick and how sure it is (status 2 = live now)."""
-    upcoming_games = get_forecast(check_sims(sims))["upcoming"]
+    upcoming_games = get_forecast()["upcoming"]
     return to_records(upcoming_games[["game_id", "date", "stage", "status", "status_text",
                                       "away", "away_name", "away_score", "home", "home_name", "home_score",
                                       "home_win_prob", "predicted_winner", "confidence"]])
@@ -151,7 +159,7 @@ def projection_dates(regular_left):
 
 
 @app.get("/api/projected-standings")
-def projected_standings(date: dt.date | None = None, sims: int = Query(2000)):
+def projected_standings(date: dt.date | None = None):
     """Tab 4: expected records on a future date.
 
     /api/projected-standings                  -> the first date you can pick (a week from today)
@@ -160,7 +168,7 @@ def projected_standings(date: dt.date | None = None, sims: int = Query(2000)):
     its date picker without repeating this logic. date is null once the regular season is over.
     """
     games, _, _ = get_games()
-    upcoming_games = get_forecast(check_sims(sims))["upcoming"]
+    upcoming_games = get_forecast()["upcoming"]
     regular_left = upcoming_games[upcoming_games["stage"] == "Regular Season"]
     if len(regular_left) == 0:  # regular season over: the current standings are final
         return {"date": None, "date_options": [], "East": [], "West": []}
@@ -177,9 +185,9 @@ def projected_standings(date: dt.date | None = None, sims: int = Query(2000)):
 
 
 @app.get("/api/odds")
-def odds(sims: int = Query(2000)):
+def odds():
     """Tab 5: each team's chances (in %) to make the playoffs, reach each round and win the title."""
-    board = get_forecast(check_sims(sims))["odds"].sort_values("champion", ascending=False)
+    board = get_forecast()["odds"].sort_values("champion", ascending=False)
     return to_records(board)
 
 

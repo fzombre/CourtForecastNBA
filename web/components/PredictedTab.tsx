@@ -5,19 +5,18 @@
 // Python: forecast.expected_wins_by_date(). This component only draws the result.
 
 import { useState } from "react";
-import { useApi, useSettings } from "./SettingsProvider";
+import { useApi } from "./SettingsProvider";
 import Table, { Caption, Info, LoadingOrError, type Column } from "./Table";
+import Team from "./Team";
 import { longDate } from "@/lib/format";
 import type { ProjectedRow, ProjectedStandings } from "@/lib/types";
 
 export default function PredictedTab() {
-  const { sims, teamName } = useSettings();
-
   // The date picked on the slider. null = "none picked yet", which makes the API choose
   // the first option (a week from today) and send us the list of all options.
   const [date, setDate] = useState<string | null>(null);
 
-  const path = `/api/projected-standings?sims=${sims}` + (date ? `&date=${date}` : "");
+  const path = "/api/projected-standings" + (date ? `?date=${date}` : "");
   const { data, error, loading } = useApi<ProjectedStandings>(path);
 
   if (!data) return <LoadingOrError error={error} what="predicted standings" />;
@@ -33,7 +32,7 @@ export default function PredictedTab() {
 
   const columns: Column<ProjectedRow>[] = [
     { header: "Rank", cell: (_row, index) => index + 1, numeric: true },
-    { header: "Team", cell: (row) => teamName(row.team) },
+    { header: "Team", cell: (row) => <Team code={row.team} /> },
     { header: "W", cell: (row) => row.W.toFixed(1), numeric: true },
     { header: "L", cell: (row) => row.L.toFixed(1), numeric: true },
   ];

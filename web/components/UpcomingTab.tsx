@@ -4,8 +4,9 @@
 // the model's predicted winner and how sure it is.
 
 import { useState } from "react";
-import { useApi, useSettings } from "./SettingsProvider";
+import { useApi } from "./SettingsProvider";
 import Table, { Caption, LoadingOrError, type Column } from "./Table";
+import Team from "./Team";
 import { pct } from "@/lib/format";
 import type { UpcomingGame } from "@/lib/types";
 
@@ -19,16 +20,15 @@ function pickName(game: UpcomingGame): string {
 const COLUMNS: Column<UpcomingGame>[] = [
   { header: "Date", cell: (g) => g.date },
   { header: "Type", cell: (g) => g.stage },
-  { header: "Away", cell: (g) => g.away_name },
-  { header: "Home", cell: (g) => g.home_name },
-  { header: "Predicted winner", cell: (g) => pickName(g) },
+  { header: "Away", cell: (g) => <Team code={g.away} name={g.away_name} /> },
+  { header: "Home", cell: (g) => <Team code={g.home} name={g.home_name} /> },
+  { header: "Predicted winner", cell: (g) => <Team code={g.predicted_winner} name={pickName(g)} /> },
   { header: "Chance", cell: (g) => pct(g.confidence), numeric: true },
 ];
 
 export default function UpcomingTab() {
-  const { sims } = useSettings();
-  // The win chances come from the forecast, which the API runs for the chosen number of simulations.
-  const { data: games, error } = useApi<UpcomingGame[]>(`/api/upcoming?sims=${sims}`);
+  // The win chances come from the forecast the Python API already ran (and cached).
+  const { data: games, error } = useApi<UpcomingGame[]>("/api/upcoming");
   const [team, setTeam] = useState(ALL_TEAMS); // the "Team" dropdown
 
   if (!games) return <LoadingOrError error={error} what="upcoming games" />;
@@ -45,8 +45,9 @@ export default function UpcomingTab() {
           <h2 className="mb-2 text-xl font-semibold">🔴 Live now</h2>
           <ul className="space-y-1">
             {live.map((g) => (
-              <li key={g.game_id}>
-                {g.away_name} {g.away_score} @ {g.home_name} {g.home_score} · {g.status_text}
+              <li key={g.game_id} className="flex flex-wrap items-center gap-x-2">
+                <Team code={g.away} name={g.away_name} /> {g.away_score} @ <Team code={g.home} name={g.home_name} />{" "}
+                {g.home_score} · {g.status_text}
               </li>
             ))}
           </ul>

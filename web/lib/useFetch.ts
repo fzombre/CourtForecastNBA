@@ -10,7 +10,7 @@ import { getJson } from "./api";
 
 export type FetchState<T> = {
   /** The latest data that arrived. While a new request is running this is still the
-   *  previous answer, so tables don't flash empty when you change a setting. */
+   *  previous answer, so tables don't flash empty while they reload. */
   data: T | undefined;
   /** The error message if the latest request failed. */
   error: string | undefined;
@@ -28,7 +28,7 @@ export type FetchState<T> = {
  * Components normally use useApi() from SettingsProvider, which fills in `version` for them.
  */
 export function useFetch<T>(path: string | null, version: number): FetchState<T> {
-  // A "key" names one particular request, e.g. "/api/odds?sims=2000#3".
+  // A "key" names one particular request, e.g. "/api/odds#3" (path #3 = after the third refresh).
   const key = path === null ? null : `${path}#${version}`;
 
   const [data, setData] = useState<T>();

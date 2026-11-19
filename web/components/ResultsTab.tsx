@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { useApi } from "./SettingsProvider";
 import Table, { Caption, LoadingOrError, type Column } from "./Table";
+import Team from "./Team";
 import type { PlayedGame } from "@/lib/types";
 
 /** The winner's full name. The API gives the winner as a team code, and the game has both names. */
@@ -17,10 +18,10 @@ function winnerName(game: PlayedGame): string {
 const COLUMNS: Column<PlayedGame>[] = [
   { header: "Date", cell: (g) => g.date },
   { header: "Type", cell: (g) => g.stage },
-  { header: "Away", cell: (g) => g.away_name },
+  { header: "Away", cell: (g) => <Team code={g.away} name={g.away_name} /> },
   { header: "Score", cell: (g) => `${g.away_score} - ${g.home_score}`, numeric: true },
-  { header: "Home", cell: (g) => g.home_name },
-  { header: "Winner", cell: (g) => winnerName(g) },
+  { header: "Home", cell: (g) => <Team code={g.home} name={g.home_name} /> },
+  { header: "Winner", cell: (g) => (g.winner ? <Team code={g.winner} name={winnerName(g)} /> : "") },
 ];
 
 export default function ResultsTab() {
