@@ -1,28 +1,53 @@
 "use client";
 
-// Tab 1 (Results): every finished game, newest first, with a filter for the type of game.
+// Tab 1 (Results): every finished game, newest day first, with a filter for the type of game.
+//
+// Each game is a scoreline, laid out like a scoreboard (see .scoreline in globals.css):
+//
+//      Boston Celtics [logo]  112  –  108  [logo] Denver Nuggets
+//
+// The winner's name and score are set bold in ink and the loser's in the muted color, so
+// the winner is clear without a separate "Winner" column.
 
 import { useState } from "react";
 import { useApi } from "./SettingsProvider";
-import Table, { Caption, LoadingOrError, type Column } from "./Table";
+import { Info, LoadingOrError } from "./Table";
+import { Select, Toolbar } from "./Controls";
+import GameDays from "./GameDays";
 import Team from "./Team";
 import type { PlayedGame } from "@/lib/types";
 
-/** The winner's full name. The API gives the winner as a team code, and the game has both names. */
-function winnerName(game: PlayedGame): string {
-  if (game.winner === game.home) return game.home_name;
-  if (game.winner === game.away) return game.away_name;
-  return ""; // a tie, which only happens in odd preseason games
+/** Classes for one side of the score: bold ink for the winner, muted for the loser. A tie
+ *  (only in odd preseason games, winner = null) leaves both sides plain ink. */
+function sideClass(game: PlayedGame, code: string): string {
+  if (game.winner === null) return "text-ink";
+  return game.winner === code ? "font-semibold text-ink" : "text-ink-muted";
 }
 
-const COLUMNS: Column<PlayedGame>[] = [
-  { header: "Date", cell: (g) => g.date },
-  { header: "Type", cell: (g) => g.stage },
-  { header: "Away", cell: (g) => <Team code={g.away} name={g.away_name} /> },
-  { header: "Score", cell: (g) => `${g.away_score} - ${g.home_score}`, numeric: true },
-  { header: "Home", cell: (g) => <Team code={g.home} name={g.home_name} /> },
-  { header: "Winner", cell: (g) => (g.winner ? <Team code={g.winner} name={winnerName(g)} /> : "") },
-];
+function Scoreline({ game }: { game: PlayedGame }) {
+  const away = sideClass(game, game.away);
+  const home = sideClass(game, game.home);
+  return (
+    <div className="scoreline">
+      <span className={`flex justify-end text-right ${away}`}>
+        <Team code={game.away} name={game.away_name} compact logoAfter />
+      </span>
+      <span className={`text-right text-lg tabular-nums ${away}`}>{game.away_score}</span>
+      <span aria-hidden className="text-center text-ink-muted">
+        –
+      </span>
+      <span className={`text-lg tabular-nums ${home}`}>{game.home_score}</span>
+      <span className={`flex ${home}`}>
+        <Team code={game.home} name={game.home_name} compact />
+      </span>
+      {/* Only non-regular-season games get a label; on phones it would crowd the row, so
+          it shows from the md breakpoint up (the filter above still covers phones). */}
+      <span className="hidden text-right text-sm text-ink-muted md:block">
+        {game.stage !== "Regular Season" ? game.stage : ""}
+      </span>
+    </div>
+  );
+}
 
 export default function ResultsTab() {
   // Results don't depend on the number of simulations, so the path never changes.
@@ -38,20 +63,17 @@ export default function ResultsTab() {
 
   return (
     <section>
-      <label className="mb-2 flex items-center gap-2 text-sm">
-        Show
-        <select
-          value={stage}
-          onChange={(event) => setStage(event.target.value)}
-          className="rounded border border-zinc-300 bg-transparent px-2 py-1 dark:border-zinc-700"
-        >
-          {stages.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
-      </label>
-      <Caption>{shown.length} games</Caption>
-      <Table columns={COLUMNS} rows={shown} rowKey={(g) => g.game_id} />
+      <Toolbar count={`${shown.length} ${shown.length === 1 ? "game" : "games"}`}>
+        <Select label="Show" value={stage} options={stages} onChange={setStage} />
+      </Toolbar>
+      {/* key={stage}: changing the filter starts the list over from the newest days. */}
+      <GameDays
+        key={stage}
+        games={shown}
+        gameKey={(g) => g.game_id}
+        renderGame={(g) => <Scoreline game={g} />}
+        empty={<Info>No finished games yet. Results show up here once games are played.</Info>}
+      />
     </section>
   );
 }

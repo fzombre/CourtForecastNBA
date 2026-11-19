@@ -1,26 +1,172 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens: every color the site uses, named after the thing on a basketball court it
+ * comes from. Components never use raw hex values or Tailwind's stock grays; they use these
+ * names (bg-floor, text-ink, border-rule, bg-paint, ...) so the whole look can be changed here.
+ *
+ *   floor       the page: pale maple, like a hardwood court under arena lights
+ *   floor-alt   a slightly lighter maple for table headers, row hover and controls
+ *   ink         main text: the deep navy of painted court lines
+ *   ink-muted   secondary text (captions, column headers, the losing side of a score)
+ *   rule        hairline dividers between rows
+ *   paint       THE data accent, like the painted key: predicted winners, probability bars,
+ *               the active tab. Also the "above average" side of the Elo bars.
+ *   paint-soft  the unfilled part of a probability bar (a lighter step of the same blue)
+ *   under       the "below average" side of the Elo bars (a ball-orange, paired with paint)
+ *   live        shot-clock red, reserved for games being played right now
+ *
+ * paint/under were checked with the dataviz palette validator against the floor color in
+ * both themes (lightness band, color-blind separation, 3:1 contrast against the floor).
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --floor: #eedfc2;
+  --floor-alt: #f5ead5;
+  --ink: #14223d;
+  --ink-muted: #6a5b42; /* 5:1 on the floor, so it stays readable as small text */
+  --rule: #d4c098;
+  --paint: #1f4fd1;
+  --paint-soft: #c6cfe6;
+  --under: #b4581c;
+  --live: #b81f18;
+  /* The lightest step of the Playoff odds heat map (OddsTab.tsx): a pale blue that the
+     accent is mixed into. Opaque on purpose: see-through blue over the yellowish maple
+     turns grey, so the cells use their own blue ramp instead. */
+  --heat: #dfe5f4;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/*
+ * Dark mode is "the arena with the lights down": a deep navy floor with maple-colored text.
+ * It's picked from the operating system setting, the same switch the team logos use
+ * (see Team.tsx), so the logos and the page always agree.
+ */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --floor: #0f1a2d;
+    --floor-alt: #16233a;
+    --ink: #efe4cc;
+    --ink-muted: #9ca7ba;
+    --rule: #263652;
+    --paint: #5f86f2;
+    --paint-soft: #2a3b62;
+    --under: #d27a3e;
+    --live: #ff6a5c;
+    --heat: #1a2844;
   }
 }
 
+/*
+ * @theme inline turns the variables above into Tailwind color and font names, so
+ * `bg-floor`, `text-ink-muted`, `border-rule`, `font-display` etc. all work in class names.
+ * "inline" makes Tailwind use var(--floor) directly, so the dark-mode values apply too.
+ */
+@theme inline {
+  --color-floor: var(--floor);
+  --color-floor-alt: var(--floor-alt);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-paint: var(--paint);
+  --color-paint-soft: var(--paint-soft);
+  --color-under: var(--under);
+  --color-live: var(--live);
+
+  /* Archivo for reading and numbers; Big Shoulders (condensed, Chicago signage) for display. */
+  --font-sans: var(--font-archivo);
+  --font-display: var(--font-big-shoulders);
+}
+
+html {
+  /* Tells the browser to draw scrollbars, the date slider, dropdowns etc. to match the theme. */
+  color-scheme: light dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--floor);
+  color: var(--ink);
+}
+
+/*
+ * A clearly visible outline for whatever has keyboard focus (Tab key), on every link,
+ * button, dropdown and slider. :focus-visible means mouse clicks don't show it.
+ */
+:focus-visible {
+  outline: 2px solid var(--paint);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The matchup row on the Upcoming tab (Matchup.tsx), laid out with named grid areas:
+ *
+ *   wide screens, one line:   [time] [away team] [away %] [=====|====] [home %] [home team]
+ *
+ *   phones, two lines:        [time ......................................... ]
+ *                             [away] [away %] [=====|=====] [home %] [home]
+ *
+ * On phones the team names shrink to their three-letter codes (see Team's `compact`).
+ * Named areas keep the HTML in one reading order (time, away, home) for screen readers
+ * while the layout changes around it.
+ * ------------------------------------------------------------------------------------- */
+.matchup {
+  display: grid;
+  grid-template-columns: auto 2.75rem minmax(5rem, 1fr) 2.75rem auto;
+  grid-template-areas:
+    "time time time time time"
+    "away ap   bar  hp   home";
+  align-items: center;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
+}
+
+@media (min-width: 768px) {
+  .matchup {
+    /* The two team columns share the leftover space equally, so every bar in the list
+       starts and ends at the same x position and the bars can be compared down the page. */
+    grid-template-columns: 6.5rem 1fr 2.75rem minmax(8rem, 15rem) 2.75rem 1fr;
+    grid-template-areas: "time away ap bar hp home";
+  }
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The scoreline row on the Results tab (ResultsTab.tsx): the score sits in the middle,
+ * each team on its own side, like a scoreboard.
+ *
+ *   [away team] [112]  –  [108] [home team]  [stage]
+ * ------------------------------------------------------------------------------------- */
+.scoreline {
+  display: grid;
+  grid-template-columns: 1fr 2.5rem 0.75rem 2.5rem 1fr;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .scoreline {
+    /* The extra last column holds the game type ("Playoffs", "NBA Cup Final"). */
+    grid-template-columns: 1fr 3rem 1rem 3rem 1fr 9rem;
+  }
+}
+
+/*
+ * The one piece of motion on the site: when the Upcoming tab loads, each predicted
+ * winner's side of the bar grows from the 50% line out to its real size, so you see
+ * every game "lean" toward the favorite. Keyframes with only a `from` animate to the
+ * element's own inline flex-basis, which is the real probability.
+ */
+@keyframes lean {
+  from {
+    flex-basis: 50%;
+  }
+}
+
+.lean {
+  animation: lean 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* People who've asked their system for less motion get the bars at full size right away. */
+@media (prefers-reduced-motion: reduce) {
+  .lean {
+    animation: none;
+  }
 }

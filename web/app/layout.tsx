@@ -3,20 +3,31 @@
 // {children} changes; the header, the tab bar and the settings stay on screen.
 
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Archivo, Big_Shoulders } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import NavTabs from "@/components/NavTabs";
 import SettingsProvider from "@/components/SettingsProvider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// next/font downloads these from Google Fonts at build time and serves them from this
+// site, so visitors' browsers never contact Google. Each one sets a CSS variable that
+// globals.css maps to Tailwind's `font-sans` and `font-display`.
+
+/** Body text, tables and every number. Archivo has tabular (equal-width) digits, so
+ *  columns of numbers line up when a class adds `tabular-nums`. */
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+/** The wordmark and headings: a condensed face based on Chicago's signage, with the
+ *  tall, tight look of arena lettering. */
+const bigShoulders = Big_Shoulders({
+  variable: "--font-big-shoulders",
   subsets: ["latin"],
+  // Note: `next build` warns "Failed to find font override values for Big Shoulders".
+  // That only means Next.js can't build a size-matched fallback font for it; headings use
+  // the system font for the split second before Big Shoulders loads. It's harmless.
 });
 
 // The browser tab title and the description search engines show.
@@ -27,13 +38,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full font-sans">
+    <html lang="en" className={`${archivo.variable} ${bigShoulders.variable} h-full antialiased`}>
+      <body className="min-h-full bg-floor font-sans text-ink">
         <SettingsProvider>
-          <div className="mx-auto max-w-7xl px-4 py-6">
+          {/* px-4 keeps a 16px gutter on phones; max-w-6xl stops lines getting too long on big screens. */}
+          <div className="mx-auto max-w-6xl px-4 pt-8 pb-16 md:px-8">
             <Header />
             <NavTabs />
-            <main>{children}</main>
+            <main className="pt-8">{children}</main>
           </div>
         </SettingsProvider>
       </body>

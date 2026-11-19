@@ -65,15 +65,40 @@ type TeamProps = {
   name?: string;
   /** Logo size in pixels (20 fits a table row). */
   logoSize?: number;
+  /**
+   * On narrow screens, show the three-letter code ("BOS") instead of the full name, so a
+   * row with two teams still fits on a phone. From the `sm` breakpoint up the full name shows.
+   */
+  compact?: boolean;
+  /**
+   * Put the logo after the name instead of before it. Used for the away team in matchups
+   * and scorelines, so both logos sit next to the middle of the row, facing each other.
+   */
+  logoAfter?: boolean;
 };
 
-/** The logo on the left, the team's name on the right. */
-export default function Team({ code, name, logoSize = 20 }: TeamProps) {
+/** The team's logo next to its name. */
+export default function Team({ code, name, logoSize = 20, compact = false, logoAfter = false }: TeamProps) {
   const { teamName } = useSettings();
+  const fullName = name ?? teamName(code);
+
+  const label = compact ? (
+    <>
+      {/* Two spans, one hidden at each screen size. title= shows the full name when you
+          hover the short code on a phone-sized window. */}
+      <span className="sm:hidden" title={fullName}>
+        {code}
+      </span>
+      <span className="hidden sm:inline">{fullName}</span>
+    </>
+  ) : (
+    <span>{fullName}</span>
+  );
+
   return (
-    <span className="inline-flex items-center gap-2 align-middle">
+    <span className={`inline-flex min-w-0 items-center gap-2 align-middle ${logoAfter ? "flex-row-reverse" : ""}`}>
       <TeamLogo code={code} size={logoSize} />
-      <span>{name ?? teamName(code)}</span>
+      {label}
     </span>
   );
 }

@@ -1,30 +1,18 @@
 "use client";
 
-// Tab 2 (Upcoming & picks): games being played right now, then every game left with
-// the model's predicted winner and how sure it is.
+// Tab 2 (Upcoming & picks): games being played right now, then every game left, day by
+// day, each drawn as a Matchup row: both teams, each one's chance to win, and a bar
+// showing who the model favors and by how much.
 
 import { useState } from "react";
 import { useApi } from "./SettingsProvider";
-import Table, { Caption, LoadingOrError, type Column } from "./Table";
-import Team from "./Team";
-import { pct } from "@/lib/format";
+import { Heading, Info, LoadingOrError } from "./Table";
+import { Select, Toolbar } from "./Controls";
+import GameDays from "./GameDays";
+import Matchup from "./Matchup";
 import type { UpcomingGame } from "@/lib/types";
 
 const ALL_TEAMS = "All teams";
-
-/** The predicted winner's full name (the API gives it as a team code). */
-function pickName(game: UpcomingGame): string {
-  return game.predicted_winner === game.home ? game.home_name : game.away_name;
-}
-
-const COLUMNS: Column<UpcomingGame>[] = [
-  { header: "Date", cell: (g) => g.date },
-  { header: "Type", cell: (g) => g.stage },
-  { header: "Away", cell: (g) => <Team code={g.away} name={g.away_name} /> },
-  { header: "Home", cell: (g) => <Team code={g.home} name={g.home_name} /> },
-  { header: "Predicted winner", cell: (g) => <Team code={g.predicted_winner} name={pickName(g)} /> },
-  { header: "Chance", cell: (g) => pct(g.confidence), numeric: true },
-];
 
 export default function UpcomingTab() {
   // The win chances come from the forecast the Python API already ran (and cached).
@@ -33,42 +21,53 @@ export default function UpcomingTab() {
 
   if (!games) return <LoadingOrError error={error} what="upcoming games" />;
 
+  // Live games get their own section at the top; the day-by-day list is everything else.
   const live = games.filter((g) => g.status === 2); // 2 = being played right now
+  const scheduled = games.filter((g) => g.status !== 2);
+
   // Every team name that appears in the remaining games, A to Z, for the dropdown.
   const teamNames = [...new Set(games.flatMap((g) => [g.home_name, g.away_name]))].sort();
-  const shown = team === ALL_TEAMS ? games : games.filter((g) => g.home_name === team || g.away_name === team);
+  const plays = (g: UpcomingGame) => team === ALL_TEAMS || g.home_name === team || g.away_name === team;
+  const shown = scheduled.filter(plays);
 
   return (
-    <section>
+    <div className="space-y-12">
       {live.length > 0 && (
-        <div className="mb-6">
-          <h2 className="mb-2 text-xl font-semibold">🔴 Live now</h2>
-          <ul className="space-y-1">
+        <section aria-labelledby="live-heading">
+          <Heading id="live-heading" className="mb-3">
+            Live now
+          </Heading>
+          <ul className="border-t-2 border-live">
             {live.map((g) => (
-              <li key={g.game_id} className="flex flex-wrap items-center gap-x-2">
-                <Team code={g.away} name={g.away_name} /> {g.away_score} @ <Team code={g.home} name={g.home_name} />{" "}
-                {g.home_score} · {g.status_text}
+              <li key={g.game_id} className="border-b border-rule py-3">
+                <Matchup game={g} />
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
 
-      <h2 className="mb-2 text-xl font-semibold">Upcoming games</h2>
-      <label className="mb-2 flex items-center gap-2 text-sm">
-        Team
-        <select
-          value={team}
-          onChange={(event) => setTeam(event.target.value)}
-          className="rounded border border-zinc-300 bg-transparent px-2 py-1 dark:border-zinc-700"
-        >
-          {[ALL_TEAMS, ...teamNames].map((name) => (
-            <option key={name}>{name}</option>
-          ))}
-        </select>
-      </label>
-      <Caption>{shown.length} games left</Caption>
-      <Table columns={COLUMNS} rows={shown} rowKey={(g) => g.game_id} />
-    </section>
+      <section aria-labelledby="upcoming-heading">
+        <Heading id="upcoming-heading" className="mb-4">
+          Upcoming games
+        </Heading>
+        <Toolbar count={`${shown.length} ${shown.length === 1 ? "game" : "games"} left`}>
+          <Select label="Team" value={team} options={[ALL_TEAMS, ...teamNames]} onChange={setTeam} />
+          {/* The key for the bar, said once here instead of in every row. */}
+          <p className="flex items-center gap-2 text-sm text-ink-muted">
+            <span aria-hidden className="inline-block h-2 w-6 rounded-full bg-paint" />
+            Predicted winner&apos;s chance
+          </p>
+        </Toolbar>
+        {/* key={team}: picking another team starts the list over from the first days. */}
+        <GameDays
+          key={team}
+          games={shown}
+          gameKey={(g) => g.game_id}
+          renderGame={(g) => <Matchup game={g} />}
+          empty={<Info>No games left on the schedule{team === ALL_TEAMS ? "" : ` for the ${team}`}.</Info>}
+        />
+      </section>
+    </div>
   );
 }
