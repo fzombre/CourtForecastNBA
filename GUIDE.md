@@ -3,10 +3,13 @@
 This guide walks through the project in the order the data flows:
 
 ```
-NBA schedule file ──> data.py ──> model.py ──> simulate.py ──> app.py (the website)
-   (internet)        table of     win chance    thousands of     tabs you click
-                     games        per game      fake seasons
+stats.nba.com ──> data.py ──> model.py ──> simulate.py ──> app.py (the website)
+ (via nba_api)    table of     win chance    thousands of     tabs you click
+                  games        per game      fake seasons
 ```
+
+All of these files live in `src/`. The tests are in `tests/`, and `scripts/check_data.py` is a quick way to
+check that the download works on your computer.
 
 ---
 
@@ -20,9 +23,17 @@ The exact commands are in the [README](README.md#run-it-windows-powershell). Her
   start of the prompt. You need to run it again in every new PowerShell window. If Windows says *"running scripts
   is disabled"*, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
 - **`pip install -r requirements.txt`** downloads the libraries listed in `requirements.txt`: Streamlit, pandas,
-  NumPy, scikit-learn and requests.
+  NumPy, scikit-learn and nba_api. (`requirements-dev.txt` adds pytest, for running the tests.)
 - **`streamlit run src/app.py`** starts a small web server on your PC and opens the site at `http://localhost:8501`.
   "localhost" means "this computer": nobody else can see it. Press Ctrl + C in PowerShell to stop it.
+- **`python scripts/check_data.py`** downloads the schedule once and prints a few games and the top of the
+  standings. If something's wrong with the download, this shows the error without starting the website.
+- **`python -m pytest`** runs the tests in `tests/`. They use a made-up schedule, so they don't need the
+  internet. `pyproject.toml` tells pytest that the source code is in `src/`.
+
+If `pip` fails while trying to *build* pandas or numpy, you're probably using a different Python than you think
+(for example one that came with MSYS2 or Git tools). Use `py -m pip ...` and `py -m streamlit ...` to make sure
+you get the Python from python.org.
 
 The code itself works the same on Windows, Mac and Linux. File paths are built with Python's `pathlib` (which
 picks `\` or `/` for you), and the saved data file is always read and written as UTF-8.
@@ -31,24 +42,29 @@ picks `\` or `/` for you), and the saved data file is always read and written as
 
 ## 1. Choosing the tools
 
-### Data source: the NBA's own schedule file
-`https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json`
+### Data source: `nba_api` and stats.nba.com
+[`nba_api`](https://github.com/swar/nba_api) is a free Python library for the NBA's own stats website,
+stats.nba.com. It needs no API key. We use one endpoint, **`scheduleleaguev2`**, which returns **every game of a
+season**: preseason, regular season, NBA Cup, play-in and playoffs. Finished games have final scores and upcoming
+games have their date and teams. NBA.com updates it as games finish, so the standings stay current.
 
-This is the file NBA.com's schedule page reads. It's free, needs no API key, and holds **every game of the
-current season**: preseason, regular season, NBA Cup, play-in and playoffs. Finished games have final scores and
-upcoming games have their date and teams. It updates through the day, so standings stay current.
+nba_api also covers player stats, box scores and past seasons, which leaves room to grow (see the next steps at
+the end of this guide).
+
+The downside: stats.nba.com is sometimes slow, and it can block automated requests, especially from cloud
+servers. So the app protects itself in two ways:
+- every request gives up after `TIMEOUT` seconds (30) instead of hanging forever;
+- every successful download is saved to `data/schedule.json`, and if a later download fails, the app uses that
+  saved copy. The sidebar says whether you're looking at live data or the saved copy.
 
 Why not the other options?
-- **`nba_api` (stats.nba.com):** it's a popular Python library, but the stats site often slows down or blocks
-  automated requests, and the requests can hang. The old Frank prototype used it. For game results we don't need
-  it at all.
+- **The NBA's CDN file** (`cdn.nba.com/.../scheduleLeagueV2.json`): this is the same schedule as a plain file, and
+  it's usually faster. The project used it at first, then switched to nba_api so all NBA data comes through
+  one library.
 - **Paid APIs (SportsDataIO, Sportradar):** these are reliable, but they cost money and need keys. That's
   overkill for now.
 - **balldontlie, ESPN's hidden API:** these work, but they're a third party copying the same data, and they can
   change without warning.
-
-One limit: NBA.com blocks some cloud servers, so the file downloads fine on your own computer but may not on a
-hosting service. If it ever fails, the app uses the last copy it saved in `data/schedule.json`.
 
 ### Frontend: Streamlit instead of JavaScript
 Streamlit turns a Python script into a website. `st.title("Hi")` puts a title on the page and `st.dataframe(table)`
@@ -63,14 +79,19 @@ outgrow it later, `data.py`, `model.py` and `simulate.py` stay exactly the same.
 
 ## 2. `data.py`: getting the games
 
-1. `download_schedule()` downloads the file with `requests.get(...)` and saves a copy to disk.
-2. `load_schedule()` tries to download, and falls back to the saved copy if the internet fails.
-3. `parse_games()` loops over every game in the JSON and keeps the pieces we care about: date, the two teams,
+1. `current_season()` works out which season to ask for, written the way the NBA writes it: `"2026-27"`. A season
+   starts in the fall, so from July on it's this year's season, and before July it's last year's.
+2. `download_schedule()` asks stats.nba.com for that season's schedule through nba_api, checks that the answer
+   actually contains games, and saves a copy to `data/schedule.json`. You can also ask for an older season,
+   for example `download_schedule("2025-26")`.
+3. `load_schedule()` tries to download, and falls back to the saved copy if anything goes wrong (no internet, a
+   timeout, or NBA.com blocking the request). If there's no saved copy yet, it stops with an error message.
+4. `parse_games()` loops over every game in the JSON and keeps the pieces we care about: date, the two teams,
    scores, and status (1 = not started, 2 = live, 3 = final). Each game becomes one row of a **pandas DataFrame**,
    which works like a spreadsheet inside Python.
-4. **Game type:** the third digit of a game id tells you the stage. In `0022600123`, the `2` means regular
+5. **Game type:** the third digit of a game id tells you the stage. In `0022600123`, the `2` means regular
    season, `1` means preseason, `4` playoffs, `5` play-in, and `6` the NBA Cup final.
-5. `standings()` counts wins and losses from finished **regular-season** games only. Preseason and the Cup
+6. `standings()` counts wins and losses from finished **regular-season** games only. Preseason and the Cup
    final don't count toward the real standings.
 
 ---
@@ -169,7 +190,8 @@ website needs.
 ## 6. Honest limitations (and good next steps)
 
 1. **Every team starts at 1500 Elo,** so the first few weeks are close to coin flips with a home-court edge.
-   *Next step:* start each team's Elo from last season's final rating (pulled once with `nba_api`).
+   *Next step:* start each team's Elo from last season's final rating. `download_schedule("2025-26")` already
+   gets last season's games; replay them once and keep the final Elo numbers.
 2. **No injuries, trades or rest days for stars.** The model only sees results.
 3. **Playoff games already played aren't locked in yet.** In April the simulator still re-plays the whole
    bracket from the standings. *Next step:* feed real series results into `conference_playoffs`.
