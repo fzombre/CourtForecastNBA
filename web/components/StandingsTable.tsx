@@ -1,39 +1,42 @@
-"use client"; // runs in the browser, because it uses useState/useEffect
+"use client";
 
-import { useEffect, useState } from "react";
-import { getStandings } from "@/lib/api";
-import type { Standings } from "@/lib/types";
+// Tab 3 (Standings): live East and West standings side by side, with games behind.
 
-/** Tab 3 of the Streamlit app: East and West standings side by side. */
+import { useApi, useSettings } from "./SettingsProvider";
+import Table, { Caption, LoadingOrError, type Column } from "./Table";
+import type { Conference, Standings, StandingsRow } from "@/lib/types";
+
 export default function StandingsTable() {
-  const [data, setData] = useState<Standings | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { teamName } = useSettings();
+  const { data, error } = useApi<Standings>("/api/standings");
 
-  useEffect(() => {
-    getStandings().then(setData).catch((e: Error) => setError(e.message));
-  }, []); // [] = run once, when the component first appears
+  if (!data) return <LoadingOrError error={error} what="standings" />;
 
-  if (error) return <p className="text-red-600">Could not load standings: {error}</p>;
-  if (!data) return <p>Loading standings...</p>;
+  // Defined inside the component because the Team column needs teamName from the settings.
+  const columns: Column<StandingsRow>[] = [
+    { header: "Rank", cell: (_row, index) => index + 1, numeric: true }, // rows arrive already sorted
+    { header: "Team", cell: (row) => teamName(row.team) },
+    { header: "W", cell: (row) => row.W, numeric: true },
+    { header: "L", cell: (row) => row.L, numeric: true },
+    { header: "PCT", cell: (row) => row.PCT.toFixed(3), numeric: true },
+    { header: "GB", cell: (row) => row.GB, numeric: true },
+  ];
+
+  // `as const` tells TypeScript this list holds exactly "East" and "West", not any string,
+  // so data[conference] is known to be a list of StandingsRow.
+  const conferences = ["East", "West"] as const satisfies readonly Conference[];
 
   return (
-    <div className="grid gap-8 md:grid-cols-2">
-      {(["East", "West"] as const).map((conference) => (
-        <table key={conference} className="text-sm">
-          <caption className="text-left text-lg font-semibold">{conference}</caption>
-          <thead>
-            <tr><th>Rank</th><th>Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th></tr>
-          </thead>
-          <tbody>
-            {data[conference].map((row, index) => (
-              <tr key={row.team}>
-                <td>{index + 1}</td><td>{row.team}</td><td>{row.W}</td><td>{row.L}</td>
-                <td>{row.PCT.toFixed(3)}</td><td>{row.GB}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ))}
-    </div>
+    <section>
+      <div className="grid gap-6 md:grid-cols-2">
+        {conferences.map((conference) => (
+          <div key={conference}>
+            <h2 className="mb-2 text-xl font-semibold">{conference}</h2>
+            <Table columns={columns} rows={data[conference]} rowKey={(row) => row.team} maxHeight="none" />
+          </div>
+        ))}
+      </div>
+      <Caption>Seeds 1-6 make the playoffs, 7-10 go to the play-in tournament.</Caption>
+    </section>
   );
 }

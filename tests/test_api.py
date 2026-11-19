@@ -41,8 +41,17 @@ def test_standings(client):
 
 def test_projected_standings(client):
     body = client.get("/api/projected-standings", params={"date": "2027-02-01"}).json()
+    assert body["date"] == "2027-02-01"
     assert len(body["East"]) == 15
     assert client.get("/api/projected-standings", params={"date": "not a date"}).status_code == 422
+
+
+def test_projected_standings_default_date(client):
+    # Without a date, the API picks the first option and lists all of them for the date picker.
+    body = client.get("/api/projected-standings").json()
+    assert body["date"] == body["date_options"][0]
+    assert body["date_options"] == sorted(body["date_options"])  # earliest first
+    assert body["date_options"][-1] == "2027-03-28"  # last day of the made-up regular season
 
 
 def test_odds_add_up(client):

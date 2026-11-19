@@ -1,10 +1,6 @@
-import StandingsTable from "@/components/StandingsTable";
+// The home page ("/") is the first tab, Results, just like the Streamlit app.
+import ResultsTab from "@/components/ResultsTab";
 
-export default function Home() {
-  return (
-    <main className="mx-auto max-w-5xl p-8">
-      <h1 className="mb-6 text-3xl font-bold">CourtForecastNBA</h1>
-      <StandingsTable />
-    </main>
-  );
+export default function ResultsPage() {
+  return <ResultsTab />;
 }

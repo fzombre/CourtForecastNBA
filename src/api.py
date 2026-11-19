@@ -17,6 +17,7 @@ every endpoint by hand and see the exact JSON the frontend will receive.
 """
 import datetime as dt
 import json
+import threading
 import time
 
 from fastapi import FastAPI, Query
@@ -35,24 +36,33 @@ GAMES_TTL_SECONDS = 600  # re-download the schedule at most every 10 minutes, li
 _games_cache = {"value": None, "loaded_at": 0.0}  # value = (games DataFrame, season, source)
 _forecast_cache = {}  # n_sims -> the dict build_forecast() returns, for the current games
 
+# The website asks for several things at once when a page opens (the header and the tab
+# both need the forecast). FastAPI answers those requests in parallel threads, so without
+# this lock two threads could each start the same slow download or simulation. With it,
+# the second thread waits for the first and then reuses its result from the cache.
+# It's an RLock ("re-entrant") because get_forecast() calls get_games() while holding it.
+_cache_lock = threading.RLock()
+
 
 def get_games():
     """The games table, downloaded again only when the saved one is older than GAMES_TTL_SECONDS."""
-    too_old = time.time() - _games_cache["loaded_at"] > GAMES_TTL_SECONDS
-    if _games_cache["value"] is None or too_old:
-        raw, source = load_schedule()  # live download, or the saved copy if that fails
-        games, season = parse_games(raw)
-        _games_cache.update(value=(games, season, source), loaded_at=time.time())
-        _forecast_cache.clear()  # new games mean every old forecast is out of date
-    return _games_cache["value"]
+    with _cache_lock:
+        too_old = time.time() - _games_cache["loaded_at"] > GAMES_TTL_SECONDS
+        if _games_cache["value"] is None or too_old:
+            raw, source = load_schedule()  # live download, or the saved copy if that fails
+            games, season = parse_games(raw)
+            _games_cache.update(value=(games, season, source), loaded_at=time.time())
+            _forecast_cache.clear()  # new games mean every old forecast is out of date
+        return _games_cache["value"]
 
 
 def get_forecast(n_sims):
     """build_forecast() for the current games, run once per number of simulations and then reused."""
-    games, _, _ = get_games()
-    if n_sims not in _forecast_cache:
-        _forecast_cache[n_sims] = build_forecast(games, n_sims=n_sims, seed=42)  # seed 42 = same as app.py
-    return _forecast_cache[n_sims]
+    with _cache_lock:
+        games, _, _ = get_games()
+        if n_sims not in _forecast_cache:
+            _forecast_cache[n_sims] = build_forecast(games, n_sims=n_sims, seed=42)  # seed 42 = same as app.py
+        return _forecast_cache[n_sims]
 
 
 def to_records(df):
@@ -131,15 +141,36 @@ def current_standings():
             for conference in ["East", "West"]}
 
 
+def projection_dates(regular_left):
+    """The dates you can pick on the Predicted standings tab, exactly like the Streamlit slider:
+    one a week starting a week from today, plus the last day of the regular season."""
+    today = dt.date.today()
+    last_day = regular_left["date"].max()
+    weeks = [today + dt.timedelta(days=d) for d in range(7, (last_day - today).days, 7)]
+    return weeks + [last_day]
+
+
 @app.get("/api/projected-standings")
-def projected_standings(date: dt.date, sims: int = Query(2000)):
-    """Tab 4: expected records on a future date. Call it like /api/projected-standings?date=2027-01-15"""
+def projected_standings(date: dt.date | None = None, sims: int = Query(2000)):
+    """Tab 4: expected records on a future date.
+
+    /api/projected-standings                  -> the first date you can pick (a week from today)
+    /api/projected-standings?date=2027-01-15  -> that date
+    The answer also lists every date you can pick ("date_options"), so the frontend can build
+    its date picker without repeating this logic. date is null once the regular season is over.
+    """
     games, _, _ = get_games()
     upcoming_games = get_forecast(check_sims(sims))["upcoming"]
     regular_left = upcoming_games[upcoming_games["stage"] == "Regular Season"]
-    projected = expected_wins_by_date(games, upcoming_games, date)
+    if len(regular_left) == 0:  # regular season over: the current standings are final
+        return {"date": None, "date_options": [], "East": [], "West": []}
+
+    options = projection_dates(regular_left)
+    chosen = date or options[0]
+    projected = expected_wins_by_date(games, upcoming_games, chosen)
     return {
-        "last_regular_season_day": regular_left["date"].max().isoformat() if len(regular_left) else None,
+        "date": chosen.isoformat(),  # "2027-01-15"
+        "date_options": [day.isoformat() for day in options],
         "East": to_records(projected[projected["conference"] == "East"]),
         "West": to_records(projected[projected["conference"] == "West"]),
     }

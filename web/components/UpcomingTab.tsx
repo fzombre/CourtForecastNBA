@@ -1,0 +1,73 @@
+"use client";
+
+// Tab 2 (Upcoming & picks): games being played right now, then every game left with
+// the model's predicted winner and how sure it is.
+
+import { useState } from "react";
+import { useApi, useSettings } from "./SettingsProvider";
+import Table, { Caption, LoadingOrError, type Column } from "./Table";
+import { pct } from "@/lib/format";
+import type { UpcomingGame } from "@/lib/types";
+
+const ALL_TEAMS = "All teams";
+
+/** The predicted winner's full name (the API gives it as a team code). */
+function pickName(game: UpcomingGame): string {
+  return game.predicted_winner === game.home ? game.home_name : game.away_name;
+}
+
+const COLUMNS: Column<UpcomingGame>[] = [
+  { header: "Date", cell: (g) => g.date },
+  { header: "Type", cell: (g) => g.stage },
+  { header: "Away", cell: (g) => g.away_name },
+  { header: "Home", cell: (g) => g.home_name },
+  { header: "Predicted winner", cell: (g) => pickName(g) },
+  { header: "Chance", cell: (g) => pct(g.confidence), numeric: true },
+];
+
+export default function UpcomingTab() {
+  const { sims } = useSettings();
+  // The win chances come from the forecast, which the API runs for the chosen number of simulations.
+  const { data: games, error } = useApi<UpcomingGame[]>(`/api/upcoming?sims=${sims}`);
+  const [team, setTeam] = useState(ALL_TEAMS); // the "Team" dropdown
+
+  if (!games) return <LoadingOrError error={error} what="upcoming games" />;
+
+  const live = games.filter((g) => g.status === 2); // 2 = being played right now
+  // Every team name that appears in the remaining games, A to Z, for the dropdown.
+  const teamNames = [...new Set(games.flatMap((g) => [g.home_name, g.away_name]))].sort();
+  const shown = team === ALL_TEAMS ? games : games.filter((g) => g.home_name === team || g.away_name === team);
+
+  return (
+    <section>
+      {live.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-2 text-xl font-semibold">🔴 Live now</h2>
+          <ul className="space-y-1">
+            {live.map((g) => (
+              <li key={g.game_id}>
+                {g.away_name} {g.away_score} @ {g.home_name} {g.home_score} · {g.status_text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <h2 className="mb-2 text-xl font-semibold">Upcoming games</h2>
+      <label className="mb-2 flex items-center gap-2 text-sm">
+        Team
+        <select
+          value={team}
+          onChange={(event) => setTeam(event.target.value)}
+          className="rounded border border-zinc-300 bg-transparent px-2 py-1 dark:border-zinc-700"
+        >
+          {[ALL_TEAMS, ...teamNames].map((name) => (
+            <option key={name}>{name}</option>
+          ))}
+        </select>
+      </label>
+      <Caption>{shown.length} games left</Caption>
+      <Table columns={COLUMNS} rows={shown} rowKey={(g) => g.game_id} />
+    </section>
+  );
+}
