@@ -1,12 +1,11 @@
-// The frame around every page: fonts, the shared settings, the header and the tab bar.
+// The frame around every page: fonts, the shared settings, the sticky top bar.
 // Next.js puts the current page where {children} is. When you click another tab, only
-// {children} changes; the header, the tab bar and the settings stay on screen.
+// {children} changes; the top bar and the settings (with the data they loaded) stay.
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, Big_Shoulders } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
-import NavTabs from "@/components/NavTabs";
 import SettingsProvider from "@/components/SettingsProvider";
 
 // next/font downloads these from Google Fonts at build time and serves them from this
@@ -36,17 +35,22 @@ export const metadata: Metadata = {
   description: "Predicts every remaining NBA game, the standings and the champion.",
 };
 
+// The color phones use for their status bar / browser toolbar: the page's navy, so the
+// app looks continuous up to the top edge of the screen.
+export const viewport: Viewport = {
+  themeColor: "#0a1322",
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${archivo.variable} ${bigShoulders.variable} h-full antialiased`}>
-      <body className="min-h-full bg-floor font-sans text-ink">
+      <body className="min-h-full bg-canvas font-sans text-fg">
         <SettingsProvider>
-          {/* px-4 keeps a 16px gutter on phones; max-w-6xl stops lines getting too long on big screens. */}
-          <div className="mx-auto max-w-6xl px-4 pt-8 pb-16 md:px-8">
-            <Header />
-            <NavTabs />
-            <main className="pt-8">{children}</main>
-          </div>
+          {/* The top bar spans the full width (so it can stick to the top edge); the
+              page content sits in a centered column. px-4 keeps a 16px gutter on phones;
+              max-w-6xl stops lines getting too long on big screens. */}
+          <Header />
+          <main className="mx-auto max-w-6xl px-4 pt-10 pb-24 md:px-8 md:pt-14">{children}</main>
         </SettingsProvider>
       </body>
     </html>

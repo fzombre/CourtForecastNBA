@@ -7,10 +7,10 @@
 //
 // The bar in the middle is the main picture of the Upcoming tab. It's one whole split in
 // two: the left part is the away team's chance to win, the right part the home team's.
-// The predicted winner's part is painted in the accent color and the other part is a light
-// tint, so down a list of games you can see at a glance who's favored and by how much.
+// The predicted winner's part is lit in gold (the "court light") and the other part is a
+// dark slate track, so down a list of games you can see at a glance who's favored and by how much.
 // The small tick in the middle marks 50%, like the half-court line: the further the
-// painted part crosses it, the more lopsided the game.
+// gold part crosses it, the more lopsided the game.
 //
 // The layout (named grid areas, and the phone version) lives in globals.css under .matchup.
 
@@ -35,16 +35,16 @@ function SplitBar({ homeChance, description }: { homeChance: number; description
       {/* gap-0.5: a 2px gap between the two parts, so they read as two pieces of one whole. */}
       <div className="flex h-2 gap-0.5">
         <div
-          className={`rounded-l-full ${homeFavored ? "flex-1 bg-paint-soft" : "lean bg-paint"}`}
+          className={`rounded-l-full ${homeFavored ? "flex-1 bg-track" : "lean bg-pick"}`}
           style={homeFavored ? undefined : { flexBasis: awayWidth }}
         />
         <div
-          className={`rounded-r-full ${homeFavored ? "lean bg-paint" : "flex-1 bg-paint-soft"}`}
+          className={`rounded-r-full ${homeFavored ? "lean bg-pick" : "flex-1 bg-track"}`}
           style={homeFavored ? { flexBasis: homeWidth } : undefined}
         />
       </div>
-      {/* The 50% tick: a thin line in ink, a little taller than the bar, centered. */}
-      <span aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-ink" />
+      {/* The 50% tick: a thin line in the text color, a little taller than the bar, centered. */}
+      <span aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-fg/70" />
     </div>
   );
 }
@@ -54,7 +54,7 @@ function Chance({ value, picked, area }: { value: number; picked: boolean; area:
   return (
     <span
       className={`tabular-nums ${area === "ap" ? "text-right" : "text-left"} ${
-        picked ? "font-semibold text-ink" : "text-ink-muted"
+        picked ? "font-semibold text-fg" : "text-muted"
       }`}
       style={{ gridArea: area }}
     >
@@ -76,12 +76,12 @@ export default function Matchup({ game }: { game: UpcomingGame }) {
 
   return (
     <div className="matchup">
-      {/* Start time, or for a live game, the period ("3rd Qtr") in shot-clock red. */}
-      <span style={{ gridArea: "time" }} className="text-sm whitespace-nowrap text-ink-muted">
+      {/* Start time, or for a live game a red badge with the period ("3rd Qtr"). */}
+      <span style={{ gridArea: "time" }} className="text-sm whitespace-nowrap text-muted tabular-nums">
         {live ? (
-          <span className="inline-flex items-center gap-1.5 font-semibold text-live">
+          <span className="inline-flex h-6 items-center gap-1.5 rounded-full bg-live/15 px-2.5 text-[13px] font-semibold text-live">
             {/* A softly pulsing dot says "this is happening now"; it stays still for reduced motion. */}
-            <span aria-hidden className="size-2 animate-pulse rounded-full bg-live motion-reduce:animate-none" />
+            <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-live motion-reduce:animate-none" />
             <span>
               <span className="sr-only">Live, </span>
               {game.status_text}
@@ -91,7 +91,7 @@ export default function Matchup({ game }: { game: UpcomingGame }) {
           game.status_text
         )}
         {/* Most games are regular season; only mention the type when it's something else. */}
-        {game.stage !== "Regular Season" && <span className="ml-2 text-ink-muted md:ml-0 md:block">{game.stage}</span>}
+        {game.stage !== "Regular Season" && <span className="ml-2 text-muted md:ml-0 md:block">{game.stage}</span>}
       </span>
 
       <span style={{ gridArea: "away" }} className={`flex justify-end text-right ${!homePicked ? "font-semibold" : ""}`}>

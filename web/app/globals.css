@@ -1,74 +1,93 @@
 @import "tailwindcss";
 
 /*
- * Design tokens: every color the site uses, named after the thing on a basketball court it
- * comes from. Components never use raw hex values or Tailwind's stock grays; they use these
- * names (bg-floor, text-ink, border-rule, bg-paint, ...) so the whole look can be changed here.
+ * ============================================================================================
+ *  "Night game": the site's one theme, a dark one.
+ * ============================================================================================
  *
- *   floor       the page: pale maple, like a hardwood court under arena lights
- *   floor-alt   a slightly lighter maple for table headers, row hover and controls
- *   ink         main text: the deep navy of painted court lines
- *   ink-muted   secondary text (captions, column headers, the losing side of a score)
- *   rule        hairline dividers between rows
- *   paint       THE data accent, like the painted key: predicted winners, probability bars,
- *               the active tab. Also the "above average" side of the Elo bars.
- *   paint-soft  the unfilled part of a probability bar (a lighter step of the same blue)
- *   under       the "below average" side of the Elo bars (a ball-orange, paired with paint)
- *   live        shot-clock red, reserved for games being played right now
+ * The idea: an arena during a night game. Everything around the court is a deep, cool
+ * navy, and the only warm light falls on the hardwood. So the page is navy, the text is
+ * a warm maple, and the one warm accent (gold, "court light") marks the thing the site
+ * is about: the model's pick. A gold strip in a matchup bar is literally the lit part of
+ * the floor, on the side of the team we think wins.
  *
- * paint/under were checked with the dataviz palette validator against the floor color in
- * both themes (lightness band, color-blind separation, 3:1 contrast against the floor).
+ * Every color the components use is one of these names (bg-canvas, text-muted,
+ * border-line, bg-pick, ...). No raw hex values or stock Tailwind grays in components,
+ * so the whole look can be tuned here.
+ *
+ *   Surfaces, darkest to lightest. Only things that really sit above the page get a
+ *   lighter surface (the sticky top bar, tables, popovers, the toast):
+ *     canvas       the page itself
+ *     panel        tables and other contained objects
+ *     raised       popovers, inputs, hover states: one step above a panel
+ *
+ *   Lines:
+ *     line         hairlines between rows and around panels
+ *     line-strong  borders that need to be seen (inputs, popovers) and meaningful rules
+ *
+ *   Text (contrast against canvas measured with the dataviz validator's contrast()):
+ *     fg           main text, a warm maple                       14.7 : 1
+ *     muted        secondary text, captions, the losing side      6.5 : 1
+ *
+ *   Data:
+ *     pick         gold "court light": the predicted winner, the active tab, the slider
+ *     pick-deep    a deeper step of the same gold, for the "above average" side of the
+ *                  Elo chart, where it has to pair evenly with `metric` (see below)
+ *     metric       periwinkle, for amounts: the odds heat map and the "below average"
+ *                  side of the Elo chart
+ *     track        the unfilled part of a bar (the underdog's side of a matchup bar)
+ *     live         shot-clock red, used for games being played right now and errors
+ *
+ *   pick-deep + metric passed the dataviz palette validator on the canvas color: lightness
+ *   band, chroma, color-blind separation (protan ΔE 26) and 3:1 contrast.
  */
 :root {
-  --floor: #eedfc2;
-  --floor-alt: #f5ead5;
-  --ink: #14223d;
-  --ink-muted: #6a5b42; /* 5:1 on the floor, so it stays readable as small text */
-  --rule: #d4c098;
-  --paint: #1f4fd1;
-  --paint-soft: #c6cfe6;
-  --under: #b4581c;
-  --live: #b81f18;
-  /* The lightest step of the Playoff odds heat map (OddsTab.tsx): a pale blue that the
-     accent is mixed into. Opaque on purpose: see-through blue over the yellowish maple
-     turns grey, so the cells use their own blue ramp instead. */
-  --heat: #dfe5f4;
+  --canvas: #0a1322;
+  --panel: #0f1b2e;
+  --raised: #15233a;
+  --line: #1c2a42;
+  --line-strong: #2d3f5e;
+  --fg: #eee4d0;
+  --muted: #8d99af;
+  --pick: #dca94a;
+  --pick-deep: #bb8a30;
+  --metric: #6c88e8;
+  --track: #24324d;
+  --live: #ff6b5e;
+
+  /*
+   * The height of the sticky top bar (Header.tsx). Things that stick below it (the day
+   * headings in the game lists) use this as their `top`, so they stop right under the
+   * bar instead of hiding behind it. The bar's rows have fixed heights to match, plus
+   * the bar's 1px bottom border:
+   *   phones/tablets: 56px brand row + 48px tab row + 1px = 105px
+   *   lg and up:      one 64px row + 1px                  = 65px
+   */
+  --header-h: 105px;
 }
 
-/*
- * Dark mode is "the arena with the lights down": a deep navy floor with maple-colored text.
- * It's picked from the operating system setting, the same switch the team logos use
- * (see Team.tsx), so the logos and the page always agree.
- */
-@media (prefers-color-scheme: dark) {
+@media (min-width: 1024px) {
   :root {
-    --floor: #0f1a2d;
-    --floor-alt: #16233a;
-    --ink: #efe4cc;
-    --ink-muted: #9ca7ba;
-    --rule: #263652;
-    --paint: #5f86f2;
-    --paint-soft: #2a3b62;
-    --under: #d27a3e;
-    --live: #ff6a5c;
-    --heat: #1a2844;
+    --header-h: 65px;
   }
 }
 
 /*
- * @theme inline turns the variables above into Tailwind color and font names, so
- * `bg-floor`, `text-ink-muted`, `border-rule`, `font-display` etc. all work in class names.
- * "inline" makes Tailwind use var(--floor) directly, so the dark-mode values apply too.
+ * @theme inline turns the variables above into Tailwind names, so `bg-canvas`,
+ * `text-muted`, `border-line-strong`, `bg-pick/15` (15% opacity) etc. all work.
  */
 @theme inline {
-  --color-floor: var(--floor);
-  --color-floor-alt: var(--floor-alt);
-  --color-ink: var(--ink);
-  --color-ink-muted: var(--ink-muted);
-  --color-rule: var(--rule);
-  --color-paint: var(--paint);
-  --color-paint-soft: var(--paint-soft);
-  --color-under: var(--under);
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-pick: var(--pick);
+  --color-pick-deep: var(--pick-deep);
+  --color-metric: var(--metric);
+  --color-track: var(--track);
   --color-live: var(--live);
 
   /* Archivo for reading and numbers; Big Shoulders (condensed, Chicago signage) for display. */
@@ -77,23 +96,66 @@
 }
 
 html {
-  /* Tells the browser to draw scrollbars, the date slider, dropdowns etc. to match the theme. */
-  color-scheme: light dark;
+  /* Dark scrollbars, dark native dropdown menus, dark date pickers. */
+  color-scheme: dark;
+  /* When the page scrolls to a heading, leave room for the sticky top bar. */
+  scroll-padding-top: calc(var(--header-h) + 16px);
 }
 
 body {
-  background: var(--floor);
-  color: var(--ink);
+  background: var(--canvas);
+  color: var(--fg);
+}
+
+/* Selected text gets the gold court light too. */
+::selection {
+  background: color-mix(in oklab, var(--pick) 35%, transparent);
+  color: var(--fg);
 }
 
 /*
- * A clearly visible outline for whatever has keyboard focus (Tab key), on every link,
- * button, dropdown and slider. :focus-visible means mouse clicks don't show it.
+ * A clearly visible gold ring around whatever has keyboard focus (Tab key), on every
+ * link, button, input and slider. :focus-visible means mouse clicks don't show it.
  */
 :focus-visible {
-  outline: 2px solid var(--paint);
+  outline: 2px solid var(--pick);
   outline-offset: 2px;
-  border-radius: 2px;
+}
+
+/* Thin, quiet scrollbars for the boxes that scroll (tables, popovers, the tab row). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The sticky top bar (Header.tsx), laid out with named grid areas:
+ *
+ *   phones/tablets, two rows:   [brand ................ actions]   56px
+ *                               [tabs, scrolling sideways .....]   48px
+ *
+ *   lg and up, one row:         [brand] [tabs ........] [actions]  64px
+ *
+ * The HTML order is brand, tabs, actions (the order a screen reader reads them); the
+ * grid areas move the tabs to their own row on smaller screens.
+ * ------------------------------------------------------------------------------------- */
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: 56px 48px;
+  grid-template-areas:
+    "brand actions"
+    "tabs  tabs";
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .topbar {
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: 64px;
+    grid-template-areas: "brand tabs actions";
+    column-gap: 2rem;
+  }
 }
 
 /* ---------------------------------------------------------------------------------------
@@ -116,14 +178,14 @@ body {
     "away ap   bar  hp   home";
   align-items: center;
   column-gap: 0.75rem;
-  row-gap: 0.25rem;
+  row-gap: 0.375rem;
 }
 
 @media (min-width: 768px) {
   .matchup {
     /* The two team columns share the leftover space equally, so every bar in the list
        starts and ends at the same x position and the bars can be compared down the page. */
-    grid-template-columns: 6.5rem 1fr 2.75rem minmax(8rem, 15rem) 2.75rem 1fr;
+    grid-template-columns: 7rem 1fr 2.75rem minmax(8rem, 15rem) 2.75rem 1fr;
     grid-template-areas: "time away ap bar hp home";
   }
 }
@@ -148,12 +210,71 @@ body {
   }
 }
 
-/*
- * The one piece of motion on the site: when the Upcoming tab loads, each predicted
- * winner's side of the bar grows from the 50% line out to its real size, so you see
- * every game "lean" toward the favorite. Keyframes with only a `from` animate to the
- * element's own inline flex-basis, which is the real probability.
- */
+/* The day headings in the game lists stick right under the sticky top bar. */
+.day-head {
+  top: var(--header-h);
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The date slider on the Predicted standings tab (PredictedTab.tsx).
+ *
+ * Browsers draw sliders their own way, so we switch that off (appearance: none) and draw
+ * the track and the thumb ourselves. The track is filled in gold up to the thumb: the
+ * component sets --fill (e.g. "35%") and the gradient's two colors meet exactly there.
+ * Chrome/Edge/Safari use ::-webkit-slider-thumb, Firefox uses ::-moz-range-thumb; the two
+ * rules have to stay separate because a browser drops a whole rule with a selector it
+ * doesn't know.
+ * ------------------------------------------------------------------------------------- */
+.date-range {
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--pick) var(--fill), var(--track) var(--fill));
+  cursor: pointer;
+}
+
+.date-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 5px solid var(--pick);
+  /* A ring in the page color separates the thumb from the track. */
+  box-shadow: 0 0 0 4px var(--canvas);
+  transition: transform 120ms ease;
+}
+
+.date-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 5px solid var(--pick);
+  box-shadow: 0 0 0 4px var(--canvas);
+}
+
+/* The thumb grows a little while you hold it: feedback that you've grabbed it. */
+.date-range:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.date-range:focus-visible {
+  outline-offset: 8px;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * Motion. Only two things move on their own, and both answer something:
+ *
+ *  - .lean: when the Upcoming tab loads, each predicted winner's side of the bar grows
+ *    out from the 50% line to its real size, so every game visibly "leans" toward the
+ *    favorite. Keyframes with only a `from` animate to the element's own inline
+ *    flex-basis, which is the real probability.
+ *  - .toast-in: the "Data refreshed" message slides up when you press refresh.
+ *
+ * The sliding pills behind the active tab and the active filter (useSlidingPill) move
+ * with CSS transitions set in those components.
+ * ------------------------------------------------------------------------------------- */
 @keyframes lean {
   from {
     flex-basis: 50%;
@@ -164,9 +285,26 @@ body {
   animation: lean 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
-/* People who've asked their system for less motion get the bars at full size right away. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.toast-in {
+  animation: toast-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* People who've asked their system for less motion get everything in place right away:
+   no growing bars, no sliding toast, no gliding pills. */
 @media (prefers-reduced-motion: reduce) {
-  .lean {
+  .lean,
+  .toast-in {
     animation: none;
+  }
+
+  .sliding-pill {
+    transition: none !important;
   }
 }

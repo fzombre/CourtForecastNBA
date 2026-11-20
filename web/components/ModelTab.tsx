@@ -26,16 +26,16 @@ const AVERAGE_ELO = 1500;
 function AccuracyBar({ label, value, emphasis }: { label: string; value: number; emphasis: boolean }) {
   return (
     <div className="grid grid-cols-[minmax(0,11rem)_1fr] items-center gap-4">
-      <span className={`text-[15px] ${emphasis ? "font-semibold" : "text-ink-muted"}`}>{label}</span>
+      <span className={`text-[15px] ${emphasis ? "font-semibold" : "text-muted"}`}>{label}</span>
       <span className="flex items-center gap-3">
         {/* The track is the whole 0–100% scale; the colored part is the value. */}
-        <span className="relative h-5 max-w-md flex-1">
+        <span className="relative h-5 max-w-md flex-1 rounded-r bg-track/50">
           <span
-            className={`absolute inset-y-0 left-0 rounded-r ${emphasis ? "bg-paint" : "bg-ink-muted"}`}
+            className={`absolute inset-y-0 left-0 rounded-r ${emphasis ? "bg-pick" : "bg-muted/50"}`}
             style={{ width: `${value * 100}%` }}
           />
         </span>
-        <span className={`w-12 tabular-nums ${emphasis ? "font-semibold" : "text-ink-muted"}`}>{pct(value)}</span>
+        <span className={`w-12 tabular-nums ${emphasis ? "font-semibold" : "text-muted"}`}>{pct(value)}</span>
       </span>
     </div>
   );
@@ -74,8 +74,8 @@ function AccuracySection({ accuracy }: { accuracy: Accuracy }) {
 // ---------- Elo: a bar growing left or right from the average ----------
 
 /**
- * A diverging bar for one team's Elo: right of the center line (accent blue) for better
- * than average, left of it (orange) for worse. `scale` is the biggest distance from 1500
+ * A diverging bar for one team's Elo: right of the center line (gold) for better than
+ * average, left of it (periwinkle) for worse. `scale` is the biggest distance from 1500
  * among all teams, so the best or worst team fills its half and the rest are in proportion.
  */
 function EloBar({ elo, scale }: { elo: number; scale: number }) {
@@ -85,9 +85,9 @@ function EloBar({ elo, scale }: { elo: number; scale: number }) {
   return (
     <span aria-hidden className="relative block h-3 w-32 sm:w-44">
       {/* The center line: 1500, an average team. */}
-      <span className="absolute inset-y-[-3px] left-1/2 w-px bg-ink-muted" />
+      <span className="absolute inset-y-[-3px] left-1/2 w-px bg-muted" />
       <span
-        className={`absolute inset-y-0 ${above ? "left-1/2 rounded-r bg-paint" : "right-1/2 rounded-l bg-under"}`}
+        className={`absolute inset-y-0 ${above ? "left-1/2 rounded-r bg-pick-deep" : "right-1/2 rounded-l bg-metric"}`}
         style={{ width: `${width}%` }}
       />
     </span>
@@ -105,9 +105,9 @@ export default function ModelTab() {
 
   const ratingColumns: Column<Rating>[] = [
     // Ratings arrive sorted best first, so the position is the rank.
-    { header: "Rank", cell: (_r, index) => index + 1, numeric: true, className: "w-12 text-ink-muted" },
+    { header: "Rank", cell: (_r, index) => index + 1, numeric: true, className: "w-12 text-muted" },
     { header: "Team", cell: (r) => <Team code={r.team} name={r.name} compact /> },
-    { header: "Conf", cell: (r) => r.conference, className: "text-ink-muted" },
+    { header: "Conf", cell: (r) => r.conference, className: "text-muted" },
     { header: "Elo", cell: (r) => r.elo.toFixed(0), numeric: true },
     { header: "vs. average", cell: (r) => <EloBar elo={r.elo} scale={eloScale} /> },
     { header: "Avg margin, last 10", cell: (r) => signed(r.margin), numeric: true },
@@ -149,6 +149,17 @@ export default function ModelTab() {
           Elo ratings: every team starts at {AVERAGE_ELO}, gains points for wins and loses them for losses. The bar
           shows how far above or below an average team each one is.
         </Caption>
+        {/* The legend for the bar's two colors, so the colors are never the only clue. */}
+        <ul className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted">
+          <li className="flex items-center gap-2">
+            <span aria-hidden className="inline-block h-2.5 w-5 rounded-sm bg-pick-deep" />
+            Above average
+          </li>
+          <li className="flex items-center gap-2">
+            <span aria-hidden className="inline-block h-2.5 w-5 rounded-sm bg-metric" />
+            Below average
+          </li>
+        </ul>
         <Table columns={ratingColumns} rows={ratings} rowKey={(r) => r.team} label="Elo power ratings" />
       </section>
     </div>

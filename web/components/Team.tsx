@@ -9,8 +9,8 @@
 // SettingsProvider turns a code into an id with teamId().
 //
 // "L" is the logo for light backgrounds. Six teams also have a "D" version drawn for dark
-// backgrounds (for the others, D is the same file), so we let the browser pick: the
-// <picture> element below uses D when your system is in dark mode, otherwise L.
+// backgrounds (for the others, D is the same file). The site only has a dark theme, so
+// we always use D: otherwise teams with dark logos (e.g. the Nets) would vanish into the page.
 
 import { useState } from "react";
 import { useSettings } from "./SettingsProvider";
@@ -33,28 +33,26 @@ export function TeamLogo({ code, size = 20 }: { code: string; size?: number }) {
   }
 
   return (
-    <picture className="shrink-0">
-      <source media="(prefers-color-scheme: dark)" srcSet={`${LOGO_BASE}/${id}/primary/D/logo.svg`} />
-      {/*
-        A plain <img> instead of Next.js's <Image>: these are small SVG files from another
-        website, so <Image>'s resizing service has nothing to do, and <Image> can't do the
-        light/dark switch above.
-        - alt="": the team's name is written right next to the logo, so a screen reader
-          should skip the picture instead of reading the name twice.
-        - loading="lazy": the browser only downloads logos as they scroll into view,
-          which matters on tabs with a thousand rows.
-      */}
-      <img
-        src={`${LOGO_BASE}/${id}/primary/L/logo.svg`}
-        alt=""
-        width={size}
-        height={size}
-        loading="lazy"
-        decoding="async"
-        onError={() => setFailed(true)}
-        style={{ width: size, height: size }}
-      />
-    </picture>
+    /*
+      A plain <img> instead of Next.js's <Image>: these are small SVG files from another
+      website, so <Image>'s resizing service has nothing to do.
+      - alt="": the team's name is written right next to the logo, so a screen reader
+        should skip the picture instead of reading the name twice.
+      - loading="lazy": the browser only downloads logos as they scroll into view,
+        which matters on tabs with a thousand rows.
+    */
+    // eslint-disable-next-line @next/next/no-img-element -- deliberate, see the comment above
+    <img
+      src={`${LOGO_BASE}/${id}/primary/D/logo.svg`}
+      alt=""
+      width={size}
+      height={size}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className="shrink-0"
+      style={{ width: size, height: size }}
+    />
   );
 }
 

@@ -12,7 +12,7 @@ import type { Conference, Standings, StandingsRow } from "@/lib/types";
 
 const COLUMNS: Column<StandingsRow>[] = [
   // Rows arrive already sorted, so the position in the list is the seed.
-  { header: "Seed", cell: (_row, index) => index + 1, numeric: true, className: "w-12 text-ink-muted" },
+  { header: "Seed", cell: (_row, index) => index + 1, numeric: true, className: "w-12 text-muted" },
   { header: "Team", cell: (row) => <Team code={row.team} compact /> },
   { header: "W", cell: (row) => row.W, numeric: true },
   { header: "L", cell: (row) => row.L, numeric: true },
