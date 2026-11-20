@@ -70,6 +70,7 @@ def test_odds_add_up(client):
 def test_mvp(client):
     body = client.get("/api/mvp").json()
     assert body["source"] == "test players"
+    assert body["stats_updated"] is None  # the made-up stats have no "saved_at" time
     assert body["backtest"]["seasons"] == 30
     assert [w["feature"] for w in body["weights"]] == ["pts", "reb", "ast", "ts_pct", "plus_minus", "win_pct"]
 

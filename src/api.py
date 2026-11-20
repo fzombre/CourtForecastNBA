@@ -48,7 +48,7 @@ _forecast_cache = {}  # "forecast" -> the dict build_forecast() returns, for the
 
 # The MVP tab's caches (see get_players and get_mvp_race below).
 PLAYERS_TTL_SECONDS = 600  # player stats change as games finish, like the schedule: same 10 minutes
-_players_cache = {"value": None, "loaded_at": 0.0}  # value = (players DataFrame, source)
+_players_cache = {"value": None, "loaded_at": 0.0}  # value = (players DataFrame, source, saved_at)
 # The MVP race depends on both the schedule (through the simulated seasons) and the player
 # stats, so it remembers which download of each it was computed from ("key"), and is
 # computed again as soon as either one is newer.
@@ -101,8 +101,12 @@ def get_players():
     with _cache_lock:
         too_old = time.time() - _players_cache["loaded_at"] > PLAYERS_TTL_SECONDS
         if _players_cache["value"] is None or too_old:
-            raw, source = load_player_stats()  # live download, or the saved copy if that fails
-            _players_cache.update(value=(parse_player_stats(raw), source), loaded_at=time.time())
+            # A live download, else the saved copy; on Vercel, the snapshot (see players.py).
+            raw, source = load_player_stats()
+            # saved_at: when NBA.com produced these numbers (UTC text, or None for an old saved
+            # copy without one). For the snapshot that can be hours ago; see players.py.
+            _players_cache.update(value=(parse_player_stats(raw), source, raw.get("saved_at")),
+                                  loaded_at=time.time())
         return _players_cache["value"]
 
 
@@ -119,7 +123,7 @@ def get_mvp_race():
     """mvp.mvp_race() for the current schedule and player stats, reused until either changes."""
     with _cache_lock:
         games, _, _ = get_games()
-        players, _ = get_players()
+        players, _, _ = get_players()
         forecast = get_forecast()  # the simulated seasons the race plays out
         key = (_games_cache["loaded_at"], _players_cache["loaded_at"])
         if _mvp_cache["key"] != key:
@@ -263,7 +267,7 @@ def mvp_race():
     and "weights" how much each stat matters (per standard deviation, see mvp.fit_softmax).
     """
     _, season, _ = get_games()
-    _, source = get_players()
+    _, source, saved_at = get_players()
     trained = get_mvp_model()
     race = get_mvp_race()
 
@@ -274,7 +278,8 @@ def mvp_race():
     shown = shown[columns].round({"today": 2, "chance": 2, "eligible": 1, "proj_gp": 1, "win_pct": 3, "ts_pct": 3})
     return {
         "season": season,
-        "source": source,              # where the player stats came from: "live (nba_api)" or "saved copy (...)"
+        "source": source,              # where the player stats came from: "live (nba_api)", "snapshot", "saved copy (...)"
+        "stats_updated": saved_at,     # when NBA.com produced them, e.g. "2026-11-19T23:40:12Z" (null if unknown)
         "n_sims": N_SIMS,
         "games_required": mvp.GAMES_REQUIRED,
         "season_games": mvp.SEASON_GAMES,

@@ -8,13 +8,22 @@ NBA.com updates it as games finish, so the standings we build from it stay live.
 
 We keep a copy on disk (so the app still works offline), and turn it into a
 pandas DataFrame with one row per game.
+
+Where the schedule comes from (see load_schedule):
+  1. stats.nba.com through nba_api: the official source, used on your own PC.
+  2. ESPN's public scoreboard (espn.py), if NBA.com doesn't answer. On cloud hosts
+     like Vercel, NBA.com never answers, so there we skip it and start with ESPN.
+  3. The saved copy on disk, if both downloads fail.
 """
 import datetime as dt
 import json
+import os
 from pathlib import Path
 
 import pandas as pd
 from nba_api.stats.library.http import NBAStatsHTTP  # the part of nba_api that talks to stats.nba.com
+
+import espn
 
 CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "schedule.json"  # <project>/data/, next to src/
 TIMEOUT = 30  # seconds to wait for NBA.com before giving up (so the app never hangs forever)
@@ -67,25 +76,61 @@ def download_schedule(season=None):
     if not raw.get("leagueSchedule", {}).get("gameDates"):
         raise ValueError("NBA.com answered, but the answer had no games in it")
 
-    # Save a copy for when a later download fails. Some hosts (Vercel, for one) don't let
-    # the app write to its own folder; there we keep the fresh data and just skip the copy,
-    # instead of letting the failed save throw away a download that worked.
+    save_copy(raw)
+    return raw
+
+
+def save_copy(raw):
+    """Save a schedule download to disk, for when a later download fails.
+
+    Some hosts (Vercel, for one) don't let the app write to its own folder; there we
+    keep the fresh data and just skip the copy, instead of letting the failed save throw
+    away a download that worked.
+    """
     try:
         CACHE_FILE.parent.mkdir(exist_ok=True)
         CACHE_FILE.write_text(json.dumps(raw), encoding="utf-8")  # utf-8 so Windows reads it the same way
     except OSError:
         pass
-    return raw
+
+
+def stats_nba_blocked():
+    """True where stats.nba.com is known not to answer us, so we don't even try.
+
+    stats.nba.com ignores cloud servers: a request just waits until the 30-second
+    timeout. Vercel sets the environment variable VERCEL=1 on every deployment, so that's
+    how we recognize it. To skip NBA.com anywhere else (another cloud host), set
+    CFNBA_SKIP_STATS_NBA=1 there.
+    """
+    return bool(os.environ.get("VERCEL")) or os.environ.get("CFNBA_SKIP_STATS_NBA") == "1"
 
 
 def load_schedule():
-    """Try to download fresh data. If that fails, fall back to the saved copy."""
-    try:
-        return download_schedule(), "live (nba_api)"
-    except Exception as error:  # a timeout, no internet, NBA.com blocking us, a bad answer...
-        if CACHE_FILE.exists():
-            return json.loads(CACHE_FILE.read_text(encoding="utf-8")), f"saved copy (download failed: {type(error).__name__})"
-        raise RuntimeError(f"nba_api couldn't download the schedule: {type(error).__name__}: {error}") from error
+    """Download fresh data from the first source that answers, else use the saved copy.
+
+    Returns (raw, source). source says where the data came from, for the website's
+    "Data" line: "live (nba_api)", "live (ESPN)", or "saved copy (...)".
+    """
+    season = current_season()
+    sources = [("nba_api", lambda: download_schedule(season)),
+               ("ESPN", lambda: espn.download_schedule(season))]
+    if stats_nba_blocked():
+        sources = sources[1:]  # straight to ESPN: no point waiting 30 s for NBA.com
+
+    failures = []  # e.g. ["nba_api: ReadTimeout", "ESPN: ConnectionError"], for the error message
+    for name, download in sources:
+        try:
+            raw = download()
+        except Exception as error:  # a timeout, no internet, being blocked, a bad answer...
+            failures.append(f"{name}: {type(error).__name__}")
+            continue
+        if name != "nba_api":
+            save_copy(raw)  # (download_schedule already saved NBA.com's answer itself)
+        return raw, f"live ({name})"
+
+    if CACHE_FILE.exists():
+        return json.loads(CACHE_FILE.read_text(encoding="utf-8")), f"saved copy (downloads failed: {'; '.join(failures)})"
+    raise RuntimeError(f"Couldn't download the schedule ({'; '.join(failures)}) and there's no saved copy")
 
 
 def parse_games(raw):

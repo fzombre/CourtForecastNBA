@@ -29,6 +29,13 @@ import { useSettings } from "./SettingsProvider";
 /** "live (nba_api)" -> true. The API reports the source as "live (...)" or "saved copy (...)". */
 const isLive = (info: Overview) => info.source.startsWith("live");
 
+/**
+ * Who the live schedule came from, for the "Data" line: "live (nba_api)" -> "NBA.com",
+ * "live (ESPN)" -> "ESPN". The deployed site gets it from ESPN, because NBA.com doesn't
+ * answer cloud servers (see src/data.py); on your own PC it's normally NBA.com.
+ */
+const liveSourceName = (info: Overview) => (info.source.includes("ESPN") ? "ESPN" : "NBA.com");
+
 function DataStatus() {
   const { overview } = useSettings();
   const info = overview.data;
@@ -81,7 +88,7 @@ function DataStatus() {
               <dt className="text-muted">Season</dt>
               <dd>{info.season.replace("-", "–")}</dd>
               <dt className="text-muted">Data</dt>
-              <dd>{isLive(info) ? "Live from NBA.com" : `The ${info.source}`}</dd>
+              <dd>{isLive(info) ? `Live from ${liveSourceName(info)}` : `The ${info.source}`}</dd>
               <dt className="text-muted">Picks</dt>
               <dd>
                 {info.using_model

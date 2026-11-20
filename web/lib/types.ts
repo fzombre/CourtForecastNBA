@@ -151,7 +151,8 @@ export type MvpFeature = "pts" | "reb" | "ast" | "ts_pct" | "plus_minus" | "win_
 
 export type MvpRace = {
   season: string;
-  source: string; // where the player stats came from: "live (nba_api)" or "saved copy (...)"
+  source: string; // where the player stats came from: "live (nba_api)", "snapshot" (the deployed site) or "saved copy (...)"
+  stats_updated: string | null; // when NBA.com produced them, in UTC: "2026-11-19T23:40:12Z"; null if unknown
   n_sims: number; // how many seasons were simulated
   games_required: number; // 65
   season_games: number; // 82

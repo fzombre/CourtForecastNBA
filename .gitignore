@@ -3,5 +3,7 @@ __pycache__/
 venv/
 .pytest_cache/
 data/*.json
+# ...except the player-stats snapshot the deployed site reads (scripts/update_data.py makes it)
+!data/players_snapshot.json
 .env
 CLAUDE.md

@@ -279,6 +279,29 @@ function HowSection({ race }: { race: MvpRace }) {
   );
 }
 
+// ---------- Where the numbers come from ----------
+
+/**
+ * The line at the bottom of the tab: where the player stats came from and how fresh they are.
+ *
+ * On the deployed site the stats are a snapshot your PC uploads (see src/players.py), so
+ * "as of" matters: it might be this morning's numbers. The time is shown in the viewer's
+ * own time zone, e.g. "Player stats from NBA.com, as of Nov 19, 11:40 PM. 2026–27 regular season."
+ */
+function statsLine(race: MvpRace): string {
+  const asOf = race.stats_updated
+    ? new Date(race.stats_updated).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
+  // A "saved copy" means the latest download failed and we're showing an older one.
+  const fallback = race.source.startsWith("saved copy") ? " (the latest download failed, so these are older)" : "";
+  return `Player stats from NBA.com${asOf ? `, as of ${asOf}` : ""}${fallback}. ${race.season.replace("-", "–")} regular season.`;
+}
+
 // ---------- The tab ----------
 
 export default function MvpTab() {
@@ -322,8 +345,7 @@ export default function MvpTab() {
       <HowSection race={race} />
 
       <Caption>
-        Player stats: {race.source.startsWith("live") ? "live from NBA.com" : `the ${race.source}`}, {race.season}{" "}
-        regular season.
+        {statsLine(race)}
         {loading && " Updating…"}
       </Caption>
     </div>

@@ -69,7 +69,8 @@ streamlit run src/app.py
 
 ```
 src/                 the app's source code
-  data.py            downloads the NBA schedule (nba_api) and turns it into a table of games
+  data.py            downloads the NBA schedule (nba_api, or ESPN as backup) and turns it into a table of games
+  espn.py            the backup schedule source: ESPN's scoreboard, for hosts NBA.com doesn't answer
   model.py           Elo ratings, features, and the logistic regression that gives win chances
   simulate.py        Monte Carlo: plays out the season, play-in and playoffs thousands of times
   forecast.py        runs the three steps above in order
@@ -82,11 +83,31 @@ scripts/
   check_data.py      checks that the NBA download works on your computer
   build_mvp_history.py  rebuilds data/mvp_history.csv (run once a year, after a new MVP is named)
   check_mvp_drift.py    checks the MVP race's "how sure are we in November?" settings on real seasons
+  update_data.py     updates data/players_snapshot.json for the deployed site (run daily on your PC)
 data/                saved copies of the schedule and player stats (created on first run, not in git),
-  mvp_history.csv    plus this one, which is in git: 30 seasons of player stats and who won MVP
+  mvp_history.csv    plus these two, which are in git: 30 seasons of player stats and who won MVP,
+  players_snapshot.json  and the player stats the deployed site reads
 requirements.txt     packages the app needs
 requirements-dev.txt adds pytest, for running the tests
-pyproject.toml       tells pytest where the source code is
+pyproject.toml       tells pytest where the source code is, and Vercel what the API needs
+index.py, vercel.json  how Vercel runs the API (see "Deploying" below)
 ```
+
+## Deploying (Vercel)
+
+The site is two Vercel projects from this one repo: the Python API (Root Directory `./`, preset FastAPI) and the
+website (Root Directory `web`, with the environment variable `API_URL` set to the API's address). Every push to
+GitHub redeploys both.
+
+stats.nba.com doesn't answer cloud servers, so the deployed API gets the schedule from ESPN instead (live scores
+still work), and player stats for the MVP tab from `data/players_snapshot.json`. Keep that file fresh from your PC,
+where NBA.com does answer:
+
+```powershell
+python scripts/update_data.py           # download today's player stats into the snapshot; then commit and push it
+python scripts/update_data.py --push    # or let it commit and push the snapshot for you
+```
+
+Once a day is plenty. The script's own comments explain how to run it automatically with Windows Task Scheduler.
 
 See **[GUIDE.md](GUIDE.md)** for a plain-language walkthrough of every piece.

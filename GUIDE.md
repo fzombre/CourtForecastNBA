@@ -51,20 +51,35 @@ games have their date and teams. NBA.com updates it as games finish, so the stan
 nba_api also covers player stats, box scores and past seasons, which leaves room to grow (see the next steps at
 the end of this guide).
 
-The downside: stats.nba.com is sometimes slow, and it can block automated requests, especially from cloud
-servers. So the app protects itself in two ways:
+The downside: stats.nba.com is sometimes slow, and it ignores cloud servers completely (we tested it on Vercel:
+the request just waits until it times out). So the app protects itself in three ways:
 - every request gives up after `TIMEOUT` seconds (30) instead of hanging forever;
-- every successful download is saved to `data/schedule.json`, and if a later download fails, the app uses that
-  saved copy. The sidebar says whether you're looking at live data or the saved copy.
+- if NBA.com doesn't answer, the schedule comes from **ESPN's public scoreboard** instead (`espn.py`). On a cloud
+  host like Vercel the app skips NBA.com and goes straight to ESPN, so it doesn't wait 30 seconds for nothing;
+- every successful download is saved to `data/schedule.json`, and if every download fails, the app uses that
+  saved copy. The website's "Data" line says which one you're looking at.
+
+**How the ESPN backup works.** ESPN's feed accepts a whole month at a time (`?dates=202611`), so 9 requests cover
+a season (October preseason to the June Finals). `espn.py` rewrites each ESPN game in exactly the shape of
+NBA.com's schedule file, so `parse_games()` and everything after it can't tell the difference. Only a few things
+need translating: six team codes (`GS` → `GSW`, `NY` → `NYK`, `NO` → `NOP`, `SA` → `SAS`, `UTAH` → `UTA`, `WSH` →
+`WAS`), ESPN's season types (preseason, regular season, play-in, playoffs), and the NBA Cup final, which ESPN
+marks only with a note. When it was added, ESPN's copy of the season matched NBA.com's game for game, with no
+score differences. The feed is unofficial, so if ESPN changes it, `espn.py` is the file to fix
+(`tests/test_espn.py` checks the translation).
+
+**Player stats have no backup source,** so the deployed site reads `data/players_snapshot.json`, which your PC
+downloads (NBA.com does answer home connections) with `python scripts/update_data.py` and pushes to GitHub. The
+MVP tab says how old those numbers are. Once a day is plenty, since season averages barely move between games.
 
 Why not the other options?
-- **The NBA's CDN file** (`cdn.nba.com/.../scheduleLeagueV2.json`): this is the same schedule as a plain file, and
-  it's usually faster. The project used it at first, then switched to nba_api so all NBA data comes through
-  one library.
+- **The NBA's CDN file** (`cdn.nba.com/.../scheduleLeagueV2.json`): this is the same schedule as a plain file. The
+  project used it at first, then switched to nba_api so all NBA data comes through one library. NBA.com now
+  refuses programs on it entirely ("Access Denied", even from home); only images like the team logos still load.
 - **Paid APIs (SportsDataIO, Sportradar):** these are reliable, but they cost money and need keys. That's
   overkill for now.
-- **balldontlie, ESPN's hidden API:** these work, but they're a third party copying the same data, and they can
-  change without warning.
+- **balldontlie:** works, but it's a third party copying the same data. ESPN is in the same position, but we only
+  use it as a backup.
 
 ### Frontend: Streamlit instead of JavaScript
 Streamlit turns a Python script into a website. `st.title("Hi")` puts a title on the page and `st.dataframe(table)`
