@@ -75,14 +75,22 @@ def load_player_stats():
     """
     try:
         raw = download_player_stats()
-        CACHE_FILE.parent.mkdir(exist_ok=True)
-        CACHE_FILE.write_text(json.dumps(raw), encoding="utf-8")  # utf-8: names have accents
-        return raw, "live (nba_api)"
     except Exception as error:  # timeout, no internet, NBA.com blocking us, a bad answer...
         if CACHE_FILE.exists():
             return (json.loads(CACHE_FILE.read_text(encoding="utf-8")),
                     f"saved copy (download failed: {type(error).__name__})")
         raise RuntimeError(f"nba_api couldn't download player stats: {type(error).__name__}: {error}") from error
+
+    # Save a copy for when a later download fails. Some hosts (Vercel, for one) don't let
+    # the app write to its own folder; there we keep the fresh data and just skip the copy.
+    # (This is outside the try above on purpose: a failed save must not throw away a
+    # download that worked, the way an exception inside that try would.)
+    try:
+        CACHE_FILE.parent.mkdir(exist_ok=True)
+        CACHE_FILE.write_text(json.dumps(raw), encoding="utf-8")  # utf-8: names have accents
+    except OSError:
+        pass
+    return raw, "live (nba_api)"
 
 
 def parse_player_stats(raw):

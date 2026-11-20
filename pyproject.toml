@@ -3,7 +3,24 @@ name = "courtforecastnba"
 version = "0.1.0"
 description = "Predicts the rest of the NBA season, the standings and the champion."
 requires-python = ">=3.10"
+# What the web API needs to run, for Vercel (see [tool.vercel] below). Locally you still
+# install from requirements.txt, which also has Streamlit and uvicorn: Vercel runs the
+# API itself (no uvicorn) and never runs the Streamlit app, and leaving Streamlit out
+# keeps the deployed bundle well under Vercel's 500 MB limit for Python.
+# (SciPy, used by the MVP model, comes along with scikit-learn.)
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.26",
+    "scikit-learn>=1.4",
+    "nba_api>=1.10",
+    "fastapi>=0.115",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]   # lets tests do "import data" (src/) and "from tests.fake_schedule import ..."
 testpaths = ["tests"]
+
+# Vercel: where the FastAPI app is. "index:app" = the variable `app` in index.py at the
+# top of the project, which loads src/api.py (see the comment in index.py for why).
+[tool.vercel]
+entrypoint = "index:app"

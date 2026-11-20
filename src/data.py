@@ -67,8 +67,14 @@ def download_schedule(season=None):
     if not raw.get("leagueSchedule", {}).get("gameDates"):
         raise ValueError("NBA.com answered, but the answer had no games in it")
 
-    CACHE_FILE.parent.mkdir(exist_ok=True)
-    CACHE_FILE.write_text(json.dumps(raw), encoding="utf-8")  # utf-8 so Windows reads it the same way
+    # Save a copy for when a later download fails. Some hosts (Vercel, for one) don't let
+    # the app write to its own folder; there we keep the fresh data and just skip the copy,
+    # instead of letting the failed save throw away a download that worked.
+    try:
+        CACHE_FILE.parent.mkdir(exist_ok=True)
+        CACHE_FILE.write_text(json.dumps(raw), encoding="utf-8")  # utf-8 so Windows reads it the same way
+    except OSError:
+        pass
     return raw
 
 
