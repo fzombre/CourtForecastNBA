@@ -116,8 +116,12 @@ def conference_playoffs(eight_seeds, matrix, rng, results):
 def run_monte_carlo(current_wins, upcoming_regular, matrix, n_sims=2000, seed=None):
     """The whole thing: simulate the season + playoffs n_sims times.
 
-    Returns a DataFrame with one row per team: average wins and the % of
-    simulations in which they reached each stage.
+    Returns two things:
+      - a DataFrame with one row per team: average wins and the % of
+        simulations in which they reached each stage;
+      - the raw (n_sims x 30) array of final regular-season wins, one row per
+        simulated season. The MVP race (mvp.py) reuses it, so a player's team
+        record in each of its simulated seasons matches the playoff odds exactly.
     """
     rng = np.random.default_rng(seed)
     season_wins = simulate_regular_season(current_wins, upcoming_regular, n_sims, rng)
@@ -149,4 +153,4 @@ def run_monte_carlo(current_wins, upcoming_regular, matrix, n_sims=2000, seed=No
     table.insert(0, "proj_W", season_wins.mean(axis=0).round(1))
     table.insert(0, "conference", [CONFERENCE[t] for t in TEAMS])
     table.index.name = "team"
-    return table.reset_index()
+    return table.reset_index(), season_wins

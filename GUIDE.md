@@ -187,6 +187,67 @@ website needs.
 
 ---
 
+## 5b. `players.py` and `mvp.py`: the MVP race
+
+The MVP race tab (on the Next.js website) answers two questions:
+- **The ladder:** if the season ended today, who would win MVP?
+- **The prediction:** what is each contender's chance to actually win it in April?
+
+There's no official in-season MVP ranking to download (NBA.com's "MVP Ladder" is a reporter's column, not
+data), so the app builds its own from player stats.
+
+### Getting player stats (`players.py`)
+`players.py` is `data.py`'s twin for players. It uses nba_api's **`leaguedashplayerstats`** endpoint: one request
+returns every player's per-game averages for the season (points, rebounds, assists, shooting, plus/minus, and his
+team's record in the games he played). It has the same safety nets as the schedule: a `TIMEOUT`, and a saved copy
+in `data/players.json` if a download fails. It also works out **true shooting %**
+(`points / (2 × (FGA + 0.44 × FTA))`), the standard measure of how efficiently someone scores.
+
+### Learning how voters pick (`mvp.py`, step 1)
+`data/mvp_history.csv` holds every regular's stats from 1996-97 to last season, and who won MVP each year. (It's
+built once by `scripts/build_mvp_history.py` and kept in git, so the app never downloads 30 seasons.)
+
+The model gives every candidate a **score**, a weighted sum of six numbers: points, rebounds, assists, true
+shooting %, plus/minus and team win %. Then it turns one season's scores into chances that add up to 100%:
+
+```
+chance(player) = e^score(player) / (sum of e^score over every candidate that season)
+```
+
+This is called a **softmax**. It's the logistic regression from `model.py` stretched from two options (home wins
+or away wins) to a whole field of candidates. Training finds the weights that gave the real MVPs the biggest
+slices of their seasons. Before training, each stat is **standardized** ("how many standard deviations above the
+average candidate"), so points (around 25) and true shooting (around 0.6) are on the same scale and the weights can
+be compared. The tab shows them: points and team win % matter most, then plus/minus and assists.
+
+Is it any good? `backtest()` hides one season, trains on the other 29, and checks whom the model picks, for each
+of the 30 seasons in turn. It picked the real MVP **16 times** and had him in its **top 3 in 28**. Its misses are
+close races that voters decided on the story of the season (Iverson over Shaq in 2001, Embiid over Jokić in 2023).
+A stats-only model can't see stories.
+
+### Playing out the rest of the season (`mvp.py`, step 2)
+The ladder simply runs today's stats through the model. That's fine in April, but in November it treats 15 games
+as the whole season. For the **prediction**, we reuse the 10,000 seasons `simulate.py` already plays for the
+playoff odds (so a player's team record matches the odds exactly), and in each one we also play out every
+contender's season:
+
+1. **Games played.** Each simulated season draws an availability rate for him (his record so far, blended with
+   last season), then the games he plays at that rate. Drawing the *rate* first, instead of flipping a coin for
+   each game, copies how injuries really work: one sprain costs 15 games in a row.
+2. **The 65-game rule.** Since 2023-24 a player must play 65 games to win MVP. In each simulated season where he
+   doesn't reach 65, he gets no chance.
+3. **His team's record** comes from that simulated season.
+4. **His averages drift.** Hot starts cool off: we estimate his true level by blending this season with last
+   season, counted as 15 games' worth. Then his remaining games land randomly around that level.
+
+Then we run the model on every simulated final stat line and average the chances. The two "how sure are we in
+November?" settings (the 15 games, and how far averages drift) aren't guesses. `scripts/check_mvp_drift.py`
+compares each player's averages on November 20 of the last five seasons with how he actually finished. Counting last
+season as 15 games gave the smallest misses, and the drift sizes were tuned so the simulation misses by as much as
+reality does.
+
+---
+
 ## 6. Honest limitations (and good next steps)
 
 1. **Every team starts at 1500 Elo,** so the first few weeks are close to coin flips with a home-court edge.
@@ -197,6 +258,12 @@ website needs.
    bracket from the standings. *Next step:* feed real series results into `conference_playoffs`.
 4. **Ties use a coin flip, not the NBA's tiebreaker rules.**
 5. **More features to try:** back-to-back flags, travel distance, offensive/defensive ratings, and player stats.
+6. **The MVP model only sees box-score numbers,** not storylines, voter fatigue, or advanced stats like
+   on/off ratings. The 65-game rule is also simplified: the real rule only counts games of 20+ minutes (with
+   two exceptions), and we count every game played. *Next step:* add NBA.com's "Advanced" stats (one more
+   request per season in `build_mvp_history.py`) as candidate features and see if the backtest improves.
+7. **The MVP history needs a yearly update.** After each MVP is announced, add the winner to `MVP_WINNERS` in
+   `src/mvp.py` and run `python scripts/build_mvp_history.py`.
 
 To add a feature, follow these steps:
 1. Calculate it in `replay_season` (before the Elo update).

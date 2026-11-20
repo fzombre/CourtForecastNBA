@@ -118,3 +118,51 @@ export type TeamOdds = {
   finals: number;
   champion: number;
 };
+
+// ---------- /api/mvp: the MVP race ----------
+
+/** One MVP candidate: his stats so far, his place on today's ladder and his chance to win. */
+export type MvpCandidate = {
+  player_id: number; // NBA.com's id for the player, used for his photo
+  name: string; // "Shai Gilgeous-Alexander" (with accents, e.g. "Nikola Jokić")
+  team: string; // three-letter code of his current team
+  gp: number; // games he has played
+  team_gp: number; // games his team has played (the most he could have)
+  required: number; // games he must reach to be eligible (65 in an 82-game season)
+  can_miss: number; // games he can still miss and stay eligible
+  min: number; // minutes per game
+  pts: number; // points per game
+  reb: number; // rebounds per game
+  ast: number; // assists per game
+  ts_pct: number; // true shooting %, as a fraction (0.62 = 62%)
+  plus_minus: number; // points per game his team outscores opponents by with him on court
+  w: number; // his team's wins in the games he played
+  l: number; // ... and losses
+  win_pct: number; // w / (w + l), as a fraction
+  rank: number | null; // place on the "if the season ended today" ladder; null if not on track for the games rule
+  today: number; // the model's chance for him on today's stats, in percent (the ladder adds up to 100)
+  chance: number; // his chance to win MVP at the end of the season, in percent
+  eligible: number; // percent of simulated seasons in which he reaches the required games
+  proj_gp: number; // games he's expected to finish the season with
+};
+
+/** One of the six numbers the MVP model weighs (mvp.FEATURES in Python). */
+export type MvpFeature = "pts" | "reb" | "ast" | "ts_pct" | "plus_minus" | "win_pct";
+
+export type MvpRace = {
+  season: string;
+  source: string; // where the player stats came from: "live (nba_api)" or "saved copy (...)"
+  n_sims: number; // how many seasons were simulated
+  games_required: number; // 65
+  season_games: number; // 82
+  backtest: {
+    seasons: number; // past seasons tested, each hidden from training in turn (30)
+    top1: number; // seasons in which the model's #1 pick was the real MVP
+    top3: number; // seasons in which the real MVP was in the model's top 3
+    first_season: string; // "1996-97"
+    last_season: string; // "2025-26"
+  };
+  /** How much each stat moves a player's score, per standard deviation above the average candidate. */
+  weights: { feature: MvpFeature; weight: number }[];
+  candidates: MvpCandidate[]; // sorted by chance to win, best first
+};

@@ -3,6 +3,8 @@
 This file adds NO new math. It calls exactly the same functions that the Streamlit
 app (app.py) calls -- load_schedule, parse_games, build_forecast, standings, ... --
 and turns their results into JSON, the format a browser (and so React) understands.
+The one addition is the MVP race (/api/mvp), which only the website has: it calls
+players.py and mvp.py, which the Streamlit app doesn't use.
 
     Python backend (data.py, model.py, simulate.py, forecast.py)   <- unchanged
           |
@@ -23,8 +25,10 @@ import time
 from fastapi import FastAPI
 from nba_api.stats.static import teams as nba_teams
 
+import mvp
 from data import CONFERENCE, add_games_behind, load_schedule, parse_games, standings, team_names
 from forecast import build_forecast, expected_wins_by_date
+from players import load_player_stats, parse_player_stats
 
 app = FastAPI(title="CourtForecastNBA API")
 
@@ -41,6 +45,17 @@ TEAM_IDS = {team["abbreviation"]: team["id"] for team in nba_teams.get_teams()}
 GAMES_TTL_SECONDS = 600  # re-download the schedule at most every 10 minutes, like app.py does
 _games_cache = {"value": None, "loaded_at": 0.0}  # value = (games DataFrame, season, source)
 _forecast_cache = {}  # "forecast" -> the dict build_forecast() returns, for the current games
+
+# The MVP tab's caches (see get_players and get_mvp_race below).
+PLAYERS_TTL_SECONDS = 600  # player stats change as games finish, like the schedule: same 10 minutes
+_players_cache = {"value": None, "loaded_at": 0.0}  # value = (players DataFrame, source)
+# The MVP race depends on both the schedule (through the simulated seasons) and the player
+# stats, so it remembers which download of each it was computed from ("key"), and is
+# computed again as soon as either one is newer.
+_mvp_cache = {"key": None, "value": None}
+# The trained MVP model and its backtest. They only depend on data/mvp_history.csv, which
+# never changes while the app runs, so they're computed once and kept until the app stops.
+_mvp_model_cache = {}
 
 # How many seasons the Monte Carlo simulation plays out. The app picks this, not the
 # person using the website: it's a quality setting for the predictions, not a choice.
@@ -79,6 +94,40 @@ def get_forecast():
             # seed=42 makes the dice rolls repeatable, so the same games always give the same odds.
             _forecast_cache["forecast"] = build_forecast(games, n_sims=N_SIMS, seed=42)
         return _forecast_cache["forecast"]
+
+
+def get_players():
+    """This season's player stats, downloaded again only when older than PLAYERS_TTL_SECONDS."""
+    with _cache_lock:
+        too_old = time.time() - _players_cache["loaded_at"] > PLAYERS_TTL_SECONDS
+        if _players_cache["value"] is None or too_old:
+            raw, source = load_player_stats()  # live download, or the saved copy if that fails
+            _players_cache.update(value=(parse_player_stats(raw), source), loaded_at=time.time())
+        return _players_cache["value"]
+
+
+def get_mvp_model():
+    """The MVP model trained on every past season, plus its backtest. Computed once per run."""
+    with _cache_lock:
+        if not _mvp_model_cache:
+            history = mvp.load_history()
+            _mvp_model_cache.update(history=history, model=mvp.train(history), backtest=mvp.backtest(history))
+        return _mvp_model_cache
+
+
+def get_mvp_race():
+    """mvp.mvp_race() for the current schedule and player stats, reused until either changes."""
+    with _cache_lock:
+        games, _, _ = get_games()
+        players, _ = get_players()
+        forecast = get_forecast()  # the simulated seasons the race plays out
+        key = (_games_cache["loaded_at"], _players_cache["loaded_at"])
+        if _mvp_cache["key"] != key:
+            trained = get_mvp_model()
+            race = mvp.mvp_race(trained["model"], players, games, forecast["season_wins"],
+                                history=trained["history"], seed=42)  # seed: same data, same odds
+            _mvp_cache.update(key=key, value=race)
+        return _mvp_cache["value"]
 
 
 def to_records(df):
@@ -191,9 +240,57 @@ def odds():
     return to_records(board)
 
 
+# How many candidates /api/mvp sends: everyone in the top MVP_LADDER_SIZE of the ladder,
+# plus anyone else with at least MVP_MIN_CHANCE percent to win, at most MVP_MAX_ROWS in all.
+# (There are ~150 candidates; most have a chance of 0.0001%, which isn't worth a row.)
+MVP_LADDER_SIZE = 15
+MVP_MIN_CHANCE = 0.05
+MVP_MAX_ROWS = 25
+
+
+@app.get("/api/mvp")
+def mvp_race():
+    """The MVP tab (web only, after Playoff odds): today's ladder and each candidate's chance to win.
+
+    "candidates" is sorted by chance to win, best first. Each one has:
+      - his stats so far (gp, pts, reb, ast, ts_pct, plus_minus, w, l, ...);
+      - rank / today: his place on the ladder "if the season ended today" and the model's
+        chance for him on today's stats (rank is null if he isn't on track for the games rule);
+      - chance: his chance to win MVP at the end of the season, in percent;
+      - eligible / proj_gp: % of simulated seasons in which he reaches the required games,
+        and the games he's expected to finish with.
+    "backtest" says how often the model picked the real MVP in past seasons it never saw,
+    and "weights" how much each stat matters (per standard deviation, see mvp.fit_softmax).
+    """
+    _, season, _ = get_games()
+    _, source = get_players()
+    trained = get_mvp_model()
+    race = get_mvp_race()
+
+    shown = race[(race["rank"] <= MVP_LADDER_SIZE) | (race["chance"] >= MVP_MIN_CHANCE)].head(MVP_MAX_ROWS)
+    columns = ["player_id", "name", "team", "gp", "team_gp", "required", "can_miss", "min",
+               "pts", "reb", "ast", "ts_pct", "plus_minus", "w", "l", "win_pct",
+               "rank", "today", "chance", "eligible", "proj_gp"]
+    shown = shown[columns].round({"today": 2, "chance": 2, "eligible": 1, "proj_gp": 1, "win_pct": 3, "ts_pct": 3})
+    return {
+        "season": season,
+        "source": source,              # where the player stats came from: "live (nba_api)" or "saved copy (...)"
+        "n_sims": N_SIMS,
+        "games_required": mvp.GAMES_REQUIRED,
+        "season_games": mvp.SEASON_GAMES,
+        "backtest": trained["backtest"],
+        "weights": [{"feature": feature, "weight": round(float(weight), 3)}
+                    for feature, weight in zip(mvp.FEATURES, trained["model"]["weights"])],
+        "candidates": to_records(shown),  # NaN rank (not on the ladder) becomes null
+    }
+
+
 @app.post("/api/refresh")
 def refresh():
     """The 🔄 button: forget everything cached, so the next request downloads fresh data."""
     _games_cache.update(value=None, loaded_at=0.0)
     _forecast_cache.clear()
+    _players_cache.update(value=None, loaded_at=0.0)
+    _mvp_cache.update(key=None, value=None)
+    # (_mvp_model_cache stays: it only depends on the history file, which a refresh doesn't change.)
     return {"ok": True}

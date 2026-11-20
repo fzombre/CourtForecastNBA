@@ -62,6 +62,7 @@ streamlit run src/app.py
 | Standings | Live East and West standings with games behind |
 | Predicted standings | Expected records on any future week, up to the end of the regular season |
 | Playoff odds | Each team's chances to make the playoffs, reach each round and win the title |
+| MVP race *(Next.js website only)* | Who would win MVP if the season ended today, and each contender's chance to win it |
 | Model | How accurate the model has been, what it learned, and team power ratings |
 
 ## Files
@@ -72,11 +73,17 @@ src/                 the app's source code
   model.py           Elo ratings, features, and the logistic regression that gives win chances
   simulate.py        Monte Carlo: plays out the season, play-in and playoffs thousands of times
   forecast.py        runs the three steps above in order
+  players.py         downloads every player's per-game averages (nba_api), for the MVP race
+  mvp.py             the MVP model (trained on 30 past MVP votes) and the MVP race simulation
+  api.py             the web API that the Next.js website in web/ talks to
   app.py             the Streamlit website
 tests/               quick checks that run on made-up data (no internet needed)
 scripts/
   check_data.py      checks that the NBA download works on your computer
-data/                the saved copy of the schedule (created on first run, not in git)
+  build_mvp_history.py  rebuilds data/mvp_history.csv (run once a year, after a new MVP is named)
+  check_mvp_drift.py    checks the MVP race's "how sure are we in November?" settings on real seasons
+data/                saved copies of the schedule and player stats (created on first run, not in git),
+  mvp_history.csv    plus this one, which is in git: 30 seasons of player stats and who won MVP
 requirements.txt     packages the app needs
 requirements-dev.txt adds pytest, for running the tests
 pyproject.toml       tells pytest where the source code is

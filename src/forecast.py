@@ -28,7 +28,7 @@ def build_forecast(games, n_sims=2000, seed=None):
     current_wins = table.loc[TEAMS, "W"].to_numpy()
     upcoming_regular = upcoming[upcoming["stage"] == "Regular Season"]
     matrix = model.matchup_matrix(trained, ratings)
-    odds = simulate.run_monte_carlo(current_wins, upcoming_regular, matrix, n_sims=n_sims, seed=seed)
+    odds, season_wins = simulate.run_monte_carlo(current_wins, upcoming_regular, matrix, n_sims=n_sims, seed=seed)
 
     regular = games[games["stage"] == "Regular Season"]
     games_per_team = pd.concat([regular["home"], regular["away"]]).value_counts()
@@ -37,6 +37,9 @@ def build_forecast(games, n_sims=2000, seed=None):
     return {
         "upcoming": upcoming,
         "odds": odds,
+        # (n_sims x 30) final wins of every simulated season, columns in data.TEAMS order.
+        # Kept for the MVP race (mvp.simulate_race), which plays the same seasons out.
+        "season_wins": season_wins,
         "ratings": ratings,
         "model": trained,
         "training_games": len(training),

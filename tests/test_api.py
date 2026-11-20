@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import api
+from tests.fake_players import STAR_ID, fake_players
 from tests.fake_schedule import fake_schedule
 
 
@@ -15,6 +16,7 @@ def client(monkeypatch):
     # Swap the real download for the fake schedule. api.py imported load_schedule
     # by name, so that name inside api is the one we replace.
     monkeypatch.setattr(api, "load_schedule", lambda: (fake_schedule(), "test data"))
+    monkeypatch.setattr(api, "load_player_stats", lambda: (fake_players(), "test players"))  # same idea, for the MVP tab
     # Fewer simulations than the real app, so the tests run quickly. The odds still have
     # to add up exactly (one champion per season), whatever the number of simulations.
     monkeypatch.setattr(api, "N_SIMS", 500)
@@ -63,3 +65,19 @@ def test_projected_standings_default_date(client):
 def test_odds_add_up(client):
     odds = client.get("/api/odds").json()
     assert abs(sum(team["champion"] for team in odds) - 100) < 0.5  # exactly one champion per season
+
+
+def test_mvp(client):
+    body = client.get("/api/mvp").json()
+    assert body["source"] == "test players"
+    assert body["backtest"]["seasons"] == 30
+    assert [w["feature"] for w in body["weights"]] == ["pts", "reb", "ast", "ts_pct", "plus_minus", "win_pct"]
+
+    candidates = body["candidates"]
+    assert 0 < len(candidates) <= api.MVP_MAX_ROWS
+    assert candidates[0]["player_id"] == STAR_ID          # the made-up star leads
+    chances = [c["chance"] for c in candidates]
+    assert chances == sorted(chances, reverse=True)         # best chance first
+    assert sum(chances) <= 100.01
+    # Players not on track for the games rule have no ladder rank: null in JSON, not NaN.
+    assert all(c["rank"] is None or c["rank"] >= 1 for c in candidates)
